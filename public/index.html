@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="/css/updater.css">
   <link rel="stylesheet" href="/css/pos.css">
   <link rel="stylesheet" href="/css/corte-caja.css">
+  <link rel="stylesheet" href="/css/vales-caja.css">
   <link rel="stylesheet" href="/css/lista-precios.css">
   <link rel="stylesheet" href="/css/lista-facturas.css">
   <link rel="stylesheet" href="/css/cuadre-caja.css">
@@ -229,6 +230,7 @@
               <div id="collapseDespacho" class="accordion-collapse collapse" data-bs-parent="#sidebarAccordion">
                 <ul class="sidebar-submenu list-unstyled mb-0">
                   <li><a href="#" class="sidebar-link" data-menu="pendientes-entrega"><i class="fa-solid fa-box" aria-hidden="true"></i> Pendientes Entrega</a></li>
+                  <li><a href="#" class="sidebar-link" data-menu="despachos-en-cocina"><i class="fa-solid fa-kitchen-set" aria-hidden="true"></i> Despachos en Cocina</a></li>
                 </ul>
               </div>
             </div>
@@ -259,6 +261,7 @@
                   <li><a href="#" class="sidebar-link" data-menu="productos-precios"><i class="fa-solid fa-tags" aria-hidden="true"></i> Productos y precios</a></li>
                   <li><a href="#" class="sidebar-link" data-menu="lista-precios"><i class="fa-solid fa-list-ul" aria-hidden="true"></i> Lista Precios</a></li>
                   <li><a href="#" class="sidebar-link" data-menu="inventario"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i> Inventario</a></li>
+                  <li><a href="#" class="sidebar-link" data-menu="relleno-inventario"><i class="fa-solid fa-cart-flatbed" aria-hidden="true"></i> Relleno de inventario</a></li>
                   <li><a href="#" class="sidebar-link" data-menu="entradas-inventario"><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i> Entradas de inventario</a></li>
                   <li><a href="#" class="sidebar-link" data-menu="salidas-inventario"><i class="fa-solid fa-arrow-up-wide-short" aria-hidden="true"></i> Salidas de inventario</a></li>
                   <li><a href="#" class="sidebar-link" data-menu="inventario-retroactivo"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Inventario Retroactivo</a></li>
@@ -296,6 +299,7 @@
                   <li><a href="#" class="sidebar-link" data-menu="resumen-del-dia"><i class="fa-solid fa-calendar-day" aria-hidden="true"></i> Resumen del día</a></li>
                   <li><a href="#" class="sidebar-link" data-menu="autorizaciones"><i class="fa-solid fa-lock" aria-hidden="true"></i> Autorizaciones</a></li>
                   <li><a href="#" class="sidebar-link" data-menu="documentos-eliminados"><i class="fa-solid fa-trash-can" aria-hidden="true"></i> Documentos eliminados</a></li>
+                  <li><a href="#" class="sidebar-link" data-menu="promociones"><i class="fa-solid fa-tags" aria-hidden="true"></i> Promociones</a></li>
                 </ul>
               </div>
             </div>
@@ -512,6 +516,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/F.js"></script>
   <script src="/js/themes.js"></script>
+  <script src="/js/login-logo-fly.js"></script>
   <script src="/js/catalogos.js"></script>
   <script src="/js/doc-nit-sat-lookup.js"></script>
   <script src="/js/catalogo-empresa-view.js"></script>
@@ -577,6 +582,7 @@
   <script src="/js/views/operaciones/compras.js"></script>
   <script src="/js/views/inventarios/inventario-mov-view.js"></script>
   <script src="/js/views/inventarios/inventario.js"></script>
+  <script src="/js/views/inventarios/inventario-relleno.js"></script>
   <script src="/js/views/inventarios/inventario-retroactivo.js"></script>
   <script src="/js/views/inventarios/inventario-actualizacion.js"></script>
   <script src="/js/views/inventarios/actualizacion-costos.js"></script>
@@ -592,6 +598,7 @@
   <script src="/js/views/archivo/resumen-del-dia.js"></script>
   <script src="/js/views/archivo/autorizaciones.js"></script>
   <script src="/js/views/archivo/documentos-eliminados.js"></script>
+  <script src="/js/views/archivo/promociones.js"></script>
   <script src="/js/views/reportes/auditoria-cajas.js"></script>
   <script src="/js/views/reportes/reportes-ventas.js"></script>
   <script src="/js/views/online-services/subir-catalogo.js"></script>
@@ -627,6 +634,7 @@
   <script src="/js/views/operaciones/tareas.js"></script>
   <script src="/js/views/distribuidoras/embarques.js"></script>
   <script src="/js/views/distribuidoras/asignacion-pedidos.js"></script>
+  <script src="/js/views/despacho/despachos-en-cocina.js"></script>
   <script src="/js/db.js"></script>
   <script src="/js/manifest.js"></script>
   <script src="/js/webauthn-client.js"></script>

@@ -1,0 +1,19 @@
+---
+description: Alias Los ERP = OnneB + FS-SV en este workspace
+alwaysApply: true
+---
+
+# Los ERP
+
+Cuando el usuario diga **Los ERP**, se refiere a estos dos proyectos del workspace:
+
+| Alias | Carpeta | Producto |
+|-------|---------|----------|
+| **OnneB** | `OnneB-ERP` | OnneB (GT) |
+| **FS-SV** | `FsERP-EL SALVADOR` | FS ERP (El Salvador) |
+
+**Los ERP** = OnneB + FS-SV.
+
+- Pedido a **Los ERP** → implementar / corregir en **ambos**, salvo que acote a uno solo.
+- Pedido a **OnneB** o **FS-SV** → solo ese producto.
+- Licencias: solo Mariandre (Generador Licencias / Licencias FS ERP). No mezclar FEL GT en FS-SV.

@@ -48,9 +48,14 @@ const FacturacionView = {
     const emp = F.getEmpNit();
     if (!emp) throw new Error('No hay empresa activa');
     const segment = path ? (path.startsWith('/') ? path : `/${path}`) : '';
+    const actor = {};
+    const codempleado = typeof F.sessionCodEmpleado === 'function' ? F.sessionCodEmpleado() : null;
+    if (codempleado != null) actor.codempleado = String(codempleado);
+    else if (F.session('user')?.superUser) actor.superUser = '1';
     const params = new URLSearchParams({
       empnit: emp,
       grupo: this._grupo || 'fac',
+      ...actor,
       ...extraParams,
     });
     return `/api/facturacion${segment}?${params}`;
@@ -105,6 +110,10 @@ const FacturacionView = {
     const marca = String(desmarca ?? '').trim();
     if (!marca) return name;
     return `${name} · <strong class="pos-prod-marca">${this.escapeHtml(marca)}</strong>`;
+  },
+
+  permiteFraccionamientoFacturas() {
+    return String(this._config?.permiteFraccionamientoFacturas || 'SI').trim().toUpperCase() === 'SI';
   },
 
   muestraDesprod2() {
@@ -212,6 +221,7 @@ const FacturacionView = {
   },
 
   puedeFraccionar(row) {
+    if (!this.permiteFraccionamientoFacturas()) return false;
     // Facturas normales (FAC): vista FAC o vista mixta Facturación.
     if (this._grupo === 'fel') return false;
     if (this._grupo === 'mixto') {
@@ -443,17 +453,32 @@ const FacturacionView = {
 
   docEditable(header) {
     if (!DocFecha.editableStatus(header?.STATUS)) return false;
-    if (String(header?.CORTE || 'NO').trim().toUpperCase() !== 'SI') return true;
-    // Factura normal (FAC) con corte: permitir edición de contenido.
-    return this.isFacturaNormal(header);
+    if (this.felUudiValue(header)) return false;
+    if (!this.docTieneCorte(header)) return true;
+    // FAC/FEL con corte: solo administrador o superusuario.
+    if (typeof F.isAdminOrSuperUser !== 'function' || !F.isAdminOrSuperUser()) return false;
+    return this.isFacturaVenta(header);
   },
 
   isFacturaNormal(header) {
     return String(header?.TIPODOC || '').trim().toUpperCase() === 'FAC';
   },
 
+  isFacturaVenta(header) {
+    const tipo = String(header?.TIPODOC || '').trim().toUpperCase();
+    return tipo === 'FAC' || tipo === 'FEF' || tipo === 'FEC' || tipo === 'FES';
+  },
+
   docTieneCorte(header) {
     return String(header?.CORTE || 'NO').trim().toUpperCase() === 'SI';
+  },
+
+  toastDocumentoNoEditable(header) {
+    if (this.docTieneCorte(header) && !this.felUudiValue(header)) {
+      F.toast('La factura ya tiene corte de caja; solo un administrador puede editarla', 'warning');
+      return;
+    }
+    F.toast('El documento no está en edición', 'warning');
   },
 
   /** Precio editable si el documento es editable y la config lo permite. */
@@ -606,7 +631,7 @@ const FacturacionView = {
     if (!key) return;
     const h = this._pedido?.header;
     if (!this.docEditable(h)) {
-      F.toast('El pedido no está operado', 'warning');
+      this.toastDocumentoNoEditable(h);
       return;
     }
     if (this.docTieneCorte(h)) {
@@ -813,30 +838,46 @@ const FacturacionView = {
     F.toast('Pedido finalizado', 'success');
     this._pedido = null;
     await this.showList();
-    await this.maybeAutoCertificarTrasFinalizar(coddocFinalizar, correlativoFinalizar, tipodocFinalizar);
+    const cert = await this.maybeAutoCertificarTrasFinalizar(
+      coddocFinalizar,
+      correlativoFinalizar,
+      tipodocFinalizar
+    );
     await this.maybeAutoFraccionarTrasFinalizar(coddocFinalizar, correlativoFinalizar, tipodocFinalizar);
+    if (typeof DocOpciones !== 'undefined' && DocOpciones.maybeImprimirTicketTrasFinalizar) {
+      await DocOpciones.maybeImprimirTicketTrasFinalizar({
+        alreadyPrintedSistema: !!(cert && cert.printedSistema),
+        onImprimir: () => this.imprimirPedido(coddocFinalizar, correlativoFinalizar),
+      });
+    }
   },
 
   async maybeAutoCertificarTrasFinalizar(coddoc, correlativo, tipodoc) {
     const tipo = String(tipodoc || '').trim().toUpperCase();
-    if (!DocOpciones.esTipoCertificableFel(tipo)) return;
+    if (!DocOpciones.esTipoCertificableFel(tipo)) return { certifico: false, printedSistema: false };
     let auto = false;
     try {
       auto = await DocOpciones.fetchCertificaAlFinalizar();
     } catch (_) {
-      return;
+      return { certifico: false, printedSistema: false };
     }
-    if (!auto) return;
+    if (!auto) return { certifico: false, printedSistema: false };
+    let printedSistema = false;
     try {
       await DocOpciones.certificarYMostrarFormatos(coddoc, correlativo, {
-        onImprimirSistema: () => this.imprimirPedido(coddoc, correlativo),
+        onImprimirSistema: async () => {
+          printedSistema = true;
+          await this.imprimirPedido(coddoc, correlativo);
+        },
       });
       await this.fetchPedidosList();
       this.refreshListDom();
+      return { certifico: true, printedSistema };
     } catch (err) {
       F.alert('Error FEL', err.message || 'No se pudo certificar automáticamente', 'error');
       await this.fetchPedidosList().catch(() => {});
       this.refreshListDom();
+      return { certifico: false, printedSistema: false };
     }
   },
 
@@ -844,6 +885,7 @@ const FacturacionView = {
     const tipo = String(tipodoc || '').trim().toUpperCase();
     if (tipo !== 'FAC') return;
     if (this._grupo === 'fel') return;
+    if (!this.permiteFraccionamientoFacturas()) return;
     let auto = false;
     try {
       auto = await DocOpciones.fetchFacturaSePasaAFraccionamientoAutom();
@@ -873,7 +915,7 @@ const FacturacionView = {
       return;
     }
     if (!this.docEditable(this._pedido?.header)) {
-      F.toast('El pedido no está en edición', 'warning');
+      this.toastDocumentoNoEditable(this._pedido?.header);
       return;
     }
     const url = this.apiUrl(`/pedidos/${encodeURIComponent(key.coddoc)}/${key.correlativo}/lineas`);
@@ -904,7 +946,7 @@ const FacturacionView = {
       return;
     }
     if (!this.docEditable(this._pedido?.header)) {
-      F.toast('El documento no está en edición', 'warning');
+      this.toastDocumentoNoEditable(this._pedido?.header);
       return;
     }
     const url = this.apiUrl(
@@ -929,7 +971,7 @@ const FacturacionView = {
 
   async onAgregarPse() {
     if (!this.docEditable(this._pedido?.header)) {
-      F.toast('El documento no está en edición', 'warning');
+      this.toastDocumentoNoEditable(this._pedido?.header);
       return;
     }
     const { value } = await Swal.fire({
@@ -2393,7 +2435,7 @@ const FacturacionView = {
 
   async onNuevoCliente() {
     if (!this.docEditable(this._pedido?.header)) {
-      F.toast('El pedido no está en edición', 'warning');
+      this.toastDocumentoNoEditable(this._pedido?.header);
       return;
     }
     const data = await ClientesView.showForm('Nuevo cliente', {}, false, { profile: 'facturacion' });

@@ -1,5 +1,5 @@
 ---
-description: Al crear vistas/submenús, integrarlos en licencias (MENU_GROUPS + API por vista) en OnneB y Mariandre
+description: Al crear vistas/submenús, integrarlos en licencias (MENU_GROUPS) — emisión solo en Mariandre
 alwaysApply: true
 ---
 
@@ -9,16 +9,15 @@ Cuando agregues una **vista nueva**, un **`data-menu`**, o un **submenú del sid
 
 El generador permite marcar **módulo completo** o **vistas individuales** (ej. Operaciones sin Compras). Ambas salen de `MENU_GROUPS`.
 
-## Fuente de verdad del generador
+## Fuente de verdad
 
-El generador **no tiene su propia lista**: lee `MENU_GROUPS` vía `lib/license-modules.js` → `lib/roles-usuarios.js`.
+El catálogo **no se duplica**: vive en `MENU_GROUPS` vía `lib/license-modules.js` → `lib/roles-usuarios.js`.
 
-Hay **dos UIs** que emiten licencias OnneB con el mismo catálogo:
+**Única UI de emisión:** Mariandre → **Generador Licencias** (lee OnneB en vivo vía `ONNEB_ROOT` / carpeta hermana). Para FS-SV: Mariandre → **Licencias FS ERP**.
 
-1. **OnneB** — carpeta `GENERADOR LICENCIAS/` (`npm run licence`)
-2. **Mariandre** — sección **Generador Licencias** (lee OnneB en vivo vía `ONNEB_ROOT` / carpeta hermana `pos_onneb`)
+No hay generador local en el repo del POS (`GENERADOR LICENCIAS` eliminado).
 
-Si el menú no está en `MENU_GROUPS`, **no aparecerá** en ninguno de los dos generadores (ni como módulo ni como vista suelta).
+Si el menú no está en `MENU_GROUPS`, **no aparecerá** en Mariandre (ni como módulo ni como vista suelta).
 
 ## Checklist obligatorio (mismo PR / misma tarea)
 
@@ -33,16 +32,14 @@ Si el menú no está en `MENU_GROUPS`, **no aparecerá** en ninguno de los dos g
    - `module`: id del grupo
    - `menus`: array con el `data-menu` de esa vista (o varias si la API es compartida)
 6. Script de la vista + CSS si corresponde.
-7. **Verificar generadores** — al completar, confirmar que la vista nueva aparece en:
-   - generador OnneB (`npm run licence` / catálogo)
-   - sección **Generador Licencias** de Mariandre (mismo catálogo; no requiere lista duplicada)
+7. **Verificar** — al completar, confirmar que la vista aparece en Mariandre (Generador Licencias / Licencias FS ERP según el producto).
 
 ## No hacer
 
-- No duplicar catálogos de módulos/vistas dentro de `GENERADOR LICENCIAS/` ni en Mariandre.
+- No recrear un generador de licencias dentro de OnneB ni de FS-SV.
 - No dejar APIs nuevas sin mapear a `menus`: quedarían sin control fino de licencia.
 - No usar un `id` de módulo distinto al de `MENU_GROUPS`.
 
 ## Verificación
 
-Al arrancar el generador o el POS se advierte si hay menús en `ALL_MENUS` fuera de `MENU_GROUPS`. También: `npm run license:check`.
+Al arrancar el POS se advierte si hay menús en `ALL_MENUS` fuera de `MENU_GROUPS`. También: `npm run license:check`.

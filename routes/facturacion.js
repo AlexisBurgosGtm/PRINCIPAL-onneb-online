@@ -28,7 +28,7 @@ const {
   F_ENTREGA_DOMICILIO,
 } = require('../lib/documento-entrega-finalize');
 const { findVendedorByClave } = require('../lib/vendedor-clave');
-const { getSettingSino, SETTING_OPCION } = require('../lib/settings');
+const { getSettingSino, getSettingPermiteFraccionamientoFacturas, SETTING_OPCION } = require('../lib/settings');
 const {
   normalizeTipofac,
   normalizePrioridad,
@@ -48,7 +48,7 @@ const {
   isStatusEditable,
   isCorteCajaCerrado,
   isDocumentoEditable,
-  canEditFacturaNormalConCorte,
+  canEditFacturaConCorte,
   SQL_STATUS_EDITABLE,
   SQL_DOCUMENTO_EDITABLE,
   sqlPedidosListStatusFilter,
@@ -129,14 +129,34 @@ function mensajeDocumentoNoEditable(status, corte) {
   return 'El documento no se puede editar';
 }
 
-async function loadDocumentoMeta(db, empnit, coddoc, correlativo) {
-  const result = await db
+async function resolveReqIsAdmin(pool, empnit, req) {
+  const cod = parseInt(
+    req.query.codempleado || req.body?.codempleado || req.headers['x-cod-empleado'],
+    10
+  );
+  if (Number.isFinite(cod) && cod > 0) {
+    const result = await pool
+      .request()
+      .input('EMPNIT', sql.VarChar, empnit)
+      .input('CODEMPLEADO', sql.Int, cod)
+      .query(`
+        SELECT TOP 1 CODTIPOEMPLEADO
+        FROM dbo.Empleados
+        WHERE EMPNIT = @EMPNIT AND CODEMPLEADO = @CODEMPLEADO
+      `);
+    return Number(result.recordset[0]?.CODTIPOEMPLEADO) === CODTIPO_EMPLEADO_ADMIN;
+  }
+  return String(req.query.superUser || req.headers['x-super-user'] || '').trim() === '1';
+}
+
+async function loadDocumentoMeta(pool, empnit, coddoc, correlativo) {
+  const result = await pool
     .request()
     .input('EMPNIT', sql.VarChar, empnit)
     .input('CODDOC', sql.VarChar, coddoc)
     .input('CORRELATIVO', sql.Decimal(18, 0), correlativo)
     .query(`
-      SELECT d.STATUS, ISNULL(d.CORTE, 'NO') AS CORTE, t.TIPODOC
+      SELECT d.STATUS, ISNULL(d.CORTE, 'NO') AS CORTE, t.TIPODOC, d.FEL_UUDI
       FROM dbo.DOCUMENTOS d
       LEFT JOIN dbo.TIPODOCUMENTOS t ON t.EMPNIT = d.EMPNIT AND t.CODDOC = d.CODDOC
       WHERE d.EMPNIT = @EMPNIT AND d.CODDOC = @CODDOC AND d.CORRELATIVO = @CORRELATIVO
@@ -144,11 +164,13 @@ async function loadDocumentoMeta(db, empnit, coddoc, correlativo) {
   return result.recordset[0] || null;
 }
 
-/** Edición de cabecera/líneas: documento editable o FAC operada con corte. */
-function isFacturacionContenidoEditable(meta) {
+/** Edición de cabecera/líneas: documento editable, o FAC/FEL con corte si es administrador. */
+async function isFacturacionContenidoEditable(pool, empnit, req, meta) {
   if (!meta) return false;
+  if (String(meta.FEL_UUDI || '').trim()) return false;
   if (isDocumentoEditable(meta.STATUS, meta.CORTE)) return true;
-  return canEditFacturaNormalConCorte(meta.STATUS, meta.CORTE, meta.TIPODOC);
+  const isAdmin = await resolveReqIsAdmin(pool, empnit, req);
+  return canEditFacturaConCorte(meta.STATUS, meta.CORTE, meta.TIPODOC, { isAdmin });
 }
 
 function roundMoney(n) {
@@ -630,6 +652,7 @@ router.get('/config', async (req, res) => {
       pool,
       SETTING_OPCION.MUESTRA_DESPROD2_EN_DOCS_Y_PRODS
     );
+    const permiteFraccionamientoFacturas = await getSettingPermiteFraccionamientoFacturas(pool);
     res.json({
       empnit,
       grupo: grupoId,
@@ -644,6 +667,7 @@ router.get('/config', async (req, res) => {
       permiteCambiarPrecio,
       solicitaAutorizaciones,
       muestraDesprod2,
+      permiteFraccionamientoFacturas,
     });
   } catch (err) {
     console.warn('[API GET /facturacion/config]', err.message);
@@ -1214,7 +1238,7 @@ router.patch('/pedidos/:coddoc/:correlativo', async (req, res) => {
 
     const docMetaPre = await loadDocumentoMeta(pool, empnit, coddoc, correlativo);
     if (!docMetaPre) return res.status(404).json({ error: 'Pedido no encontrado' });
-    if (!isFacturacionContenidoEditable(docMetaPre)) {
+    if (!(await isFacturacionContenidoEditable(pool, empnit, req, docMetaPre))) {
       return res.status(400).json({
         error: mensajeDocumentoNoEditable(docMetaPre.STATUS, docMetaPre.CORTE),
       });
@@ -1329,14 +1353,14 @@ router.post('/pedidos/:coddoc/:correlativo/lineas', async (req, res) => {
       .input('CODDOC', sql.VarChar, coddoc)
       .input('CORRELATIVO', sql.Decimal(18, 0), correlativo)
       .query(`
-        SELECT d.STATUS, ISNULL(d.CORTE, 'NO') AS CORTE, t.TIPODOC
+        SELECT d.STATUS, ISNULL(d.CORTE, 'NO') AS CORTE, t.TIPODOC, d.FEL_UUDI
         FROM dbo.DOCUMENTOS d
         LEFT JOIN dbo.TIPODOCUMENTOS t ON t.EMPNIT = d.EMPNIT AND t.CODDOC = d.CODDOC
         WHERE d.EMPNIT = @EMPNIT AND d.CODDOC = @CODDOC AND d.CORRELATIVO = @CORRELATIVO
       `);
     if (!docCheck.recordset.length) return res.status(404).json({ error: 'Pedido no encontrado' });
     const docMetaLine = docCheck.recordset[0];
-    if (!isFacturacionContenidoEditable(docMetaLine)) {
+    if (!(await isFacturacionContenidoEditable(pool, empnit, req, docMetaLine))) {
       return res.status(400).json({ error: mensajeDocumentoNoEditable(docMetaLine.STATUS, docMetaLine.CORTE) });
     }
 
@@ -1519,7 +1543,7 @@ router.patch('/pedidos/:coddoc/:correlativo/lineas/:lineId', async (req, res) =>
         SELECT
           l.CANTIDAD, l.COSTO, l.PRECIO, l.EQUIVALE, l.PESO, l.TOTALUNIDADES,
           l.CODPROD, l.DESPROD, l.TIPOPROD, l.TIPOM, l.CODBODEGAENTRADA, l.CODBODEGASALIDA,
-          d.STATUS, ISNULL(d.CORTE, 'NO') AS CORTE, t.TIPODOC
+          d.STATUS, ISNULL(d.CORTE, 'NO') AS CORTE, t.TIPODOC, d.FEL_UUDI
         FROM dbo.DOCPRODUCTOS l
         JOIN dbo.DOCUMENTOS d ON d.EMPNIT = l.EMPNIT AND d.CODDOC = l.CODDOC AND d.CORRELATIVO = l.CORRELATIVO
         JOIN dbo.TIPODOCUMENTOS t ON t.EMPNIT = d.EMPNIT AND t.CODDOC = d.CODDOC
@@ -1527,7 +1551,7 @@ router.patch('/pedidos/:coddoc/:correlativo/lineas/:lineId', async (req, res) =>
       `);
     if (!lineRes.recordset.length) return res.status(404).json({ error: 'Línea no encontrada' });
     const lineMeta = lineRes.recordset[0];
-    if (!isFacturacionContenidoEditable(lineMeta)) {
+    if (!(await isFacturacionContenidoEditable(pool, empnit, req, lineMeta))) {
       return res.status(400).json({ error: mensajeDocumentoNoEditable(lineMeta.STATUS, lineMeta.CORTE) });
     }
     const line = lineMeta;
@@ -1642,7 +1666,7 @@ router.delete('/pedidos/:coddoc/:correlativo/lineas/:lineId', async (req, res) =
           SELECT
             l.CODPROD, l.DESPROD, l.TOTALUNIDADES, l.TIPOPROD, l.TIPOM,
             l.CODBODEGAENTRADA, l.CODBODEGASALIDA, d.STATUS, ISNULL(d.CORTE, 'NO') AS CORTE,
-            t.TIPODOC
+            t.TIPODOC, d.FEL_UUDI
           FROM dbo.DOCPRODUCTOS l
           JOIN dbo.DOCUMENTOS d
             ON d.EMPNIT = l.EMPNIT AND d.CODDOC = l.CODDOC AND d.CORRELATIVO = l.CORRELATIVO
@@ -1654,7 +1678,7 @@ router.delete('/pedidos/:coddoc/:correlativo/lineas/:lineId', async (req, res) =
         return res.status(404).json({ error: 'Línea no encontrada' });
       }
       const line = lineRes.recordset[0];
-      if (!isFacturacionContenidoEditable(line)) {
+      if (!(await isFacturacionContenidoEditable(pool, empnit, req, line))) {
         await transaction.rollback();
         return res.status(400).json({ error: mensajeDocumentoNoEditable(line.STATUS, line.CORTE) });
       }
@@ -1953,6 +1977,12 @@ router.post('/pedidos/:coddoc/:correlativo/fraccionar', async (req, res) => {
 
   try {
     const pool = await req.app.locals.getDbPool();
+    const permite = await getSettingPermiteFraccionamientoFacturas(pool);
+    if (permite !== 'SI') {
+      return res.status(403).json({
+        error: 'El fraccionamiento de facturas está desactivado en Configuraciones',
+      });
+    }
     const tx = new sql.Transaction(pool);
     await tx.begin();
     try {

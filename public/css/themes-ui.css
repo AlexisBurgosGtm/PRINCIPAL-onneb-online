@@ -371,6 +371,10 @@
   background: linear-gradient(135deg, #4ade80, #15803d);
 }
 
+.theme-swatch-fs {
+  background: linear-gradient(135deg, #fb923c, #14532d);
+}
+
 #btn-logout {
   border-color: var(--app-border);
   color: var(--app-text);

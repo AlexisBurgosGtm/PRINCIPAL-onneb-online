@@ -63,6 +63,11 @@ function createRetencionesDocView(cfg) {
       return Math.round(Number(n) * 1000) / 1000;
     },
 
+    /** Hasta 2 centavos extra sobre el saldo para cerrar por redondeo de retención. */
+    maxAbonoRetencion(saldo) {
+      return this.roundMoney((Number(saldo) || 0) + 0.02);
+    },
+
     formatDate(value) {
       return LibroContableCommon.formatDate(value);
     },
@@ -423,7 +428,7 @@ function createRetencionesDocView(cfg) {
               const monto = editable
                 ? `<input type="number" class="form-control form-control-sm text-end ret-abono-monto" data-idx="${idx}"
                     min="0.01" step="0.001" value="${this.escapeHtml(a.ABONO)}"
-                    max="${this.escapeHtml(a.FAC_DOC_SALDO || a.ABONO)}">`
+                    max="${this.escapeHtml(this.maxAbonoRetencion(a.FAC_DOC_SALDO))}">`
                 : this.escapeHtml(this.formatMoney(a.ABONO));
               const remove = editable
                 ? `<button type="button" class="btn btn-sm btn-outline-danger ret-abono-remove" data-idx="${idx}"><i class="fa-solid fa-xmark"></i></button>`
@@ -625,7 +630,7 @@ function createRetencionesDocView(cfg) {
       if (exists) return;
       const { base, retencion } = this.calcRetencion(d.TOTALPRECIO);
       const maxSaldo = Number(d.DOC_SALDO) || 0;
-      const abono = Math.min(retencion, maxSaldo);
+      const abono = Math.min(retencion, this.maxAbonoRetencion(maxSaldo));
       this._abonos.push({
         CODDOC_FAC: d.CODDOC,
         CORRELATIVO_FAC: d.CORRELATIVO,
@@ -987,7 +992,7 @@ function createRetencionesDocView(cfg) {
           const a = this._abonos[idx];
           if (!a) return;
           let val = this.roundMoney(inp.value);
-          const max = Number(a.FAC_DOC_SALDO) || val;
+          const max = this.maxAbonoRetencion(a.FAC_DOC_SALDO);
           if (val < 0) val = 0;
           if (val > max) {
             val = max;

@@ -456,14 +456,22 @@ const EmpleadosView = {
   },
 
   inputField(name, label, value, opts = {}) {
-    const { type = 'text', readonly = false, step = '', autocomplete = '' } = opts;
+    const {
+      type = 'text',
+      readonly = false,
+      step = '',
+      autocomplete = '',
+      className = '',
+      attrs = '',
+    } = opts;
     const ro = readonly ? 'readonly' : '';
     const stepAttr = step ? `step="${step}"` : '';
     const acAttr = autocomplete ? `autocomplete="${this.escapeHtml(autocomplete)}"` : '';
+    const extraClass = className ? ` ${className}` : '';
     return `
       <label class="form-label small mb-0">${this.escapeHtml(label)}</label>
-      <input type="${type}" class="form-control form-control-sm" name="${name}"
-        value="${this.escapeHtml(value ?? '')}" ${ro} ${stepAttr} ${acAttr}>
+      <input type="${type}" class="form-control form-control-sm${extraClass}" name="${name}"
+        value="${this.escapeHtml(value ?? '')}" ${ro} ${stepAttr} ${acAttr} ${attrs}>
     `;
   },
 
@@ -481,8 +489,16 @@ const EmpleadosView = {
   },
 
   prepareAccesoFields(isEdit, row) {
-    const usuario = document.querySelector('.swal2-html-container [name="EMP_ACCESO_USUARIO"]');
-    const clave = document.querySelector('.swal2-html-container [name="EMP_ACCESO_CLAVE"]');
+    const root = document.querySelector('.swal2-html-container');
+    const form = root?.querySelector('.catalogo-form') || root;
+    form?.setAttribute('autocomplete', 'off');
+    form?.setAttribute('data-lpignore', 'true');
+    form?.setAttribute('data-1p-ignore', 'true');
+    form?.setAttribute('data-bwignore', 'true');
+    form?.setAttribute('data-form-type', 'other');
+
+    const usuario = root?.querySelector('[name="EMP_ACCESO_USUARIO"]');
+    const clave = root?.querySelector('[name="EMP_ACCESO_CLAVE"]');
     if (!usuario || !clave) return;
 
     const unlock = (el) => {
@@ -490,6 +506,7 @@ const EmpleadosView = {
     };
     clave.addEventListener('focus', () => unlock(clave), { once: true });
     usuario.addEventListener('focus', () => unlock(clave), { once: true });
+    usuario.addEventListener('focus', () => unlock(usuario), { once: true });
 
     const applyValues = () => {
       const blankLiteral = (v) => (/^(null|undefined)$/i.test(String(v || '').trim()) ? '' : String(v || '').trim());
@@ -506,7 +523,23 @@ const EmpleadosView = {
     setTimeout(applyValues, 300);
   },
 
+  accesoAntiAutofillAttrs() {
+    return [
+      'autocomplete="off"',
+      'autocapitalize="off"',
+      'autocorrect="off"',
+      'spellcheck="false"',
+      'data-lpignore="true"',
+      'data-1p-ignore="true"',
+      'data-bwignore="true"',
+      'data-form-type="other"',
+      'data-autocomplete="off"',
+      'aria-autocomplete="none"',
+    ].join(' ');
+  },
+
   accesoCardHtml(r) {
+    const anti = this.accesoAntiAutofillAttrs();
     return `
       <div class="card empleados-acceso-card mb-2">
         <div class="card-body py-2 px-2">
@@ -515,16 +548,18 @@ const EmpleadosView = {
             Acceso al inicio de sesión
           </p>
           <p class="small text-muted mb-2">Deje usuario y clave vacíos si el empleado no usará el sistema.</p>
-          <div class="empleados-autofill-trap" aria-hidden="true">
-            <input type="text" name="fake-username" autocomplete="username" tabindex="-1">
-            <input type="password" name="fake-password" autocomplete="current-password" tabindex="-1">
-          </div>
           ${this.row2(
-            this.inputField('EMP_ACCESO_USUARIO', 'Usuario', r.USUARIO, { autocomplete: 'off' }),
-            this.inputField('EMP_ACCESO_CLAVE', 'Clave', r.CLAVE, {
-              type: 'password',
-              autocomplete: 'new-password',
+            this.inputField('EMP_ACCESO_USUARIO', 'Usuario', r.USUARIO, {
+              autocomplete: 'off',
               readonly: true,
+              attrs: anti,
+            }),
+            this.inputField('EMP_ACCESO_CLAVE', 'Clave', r.CLAVE, {
+              type: 'text',
+              className: 'config-pass-mask',
+              autocomplete: 'off',
+              readonly: true,
+              attrs: `${anti} inputmode="text"`,
             })
           )}
         </div>

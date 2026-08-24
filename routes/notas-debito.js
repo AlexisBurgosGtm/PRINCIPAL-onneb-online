@@ -13,6 +13,7 @@ const { parseFechaInput, applyDocumentoFecha, nowParts, normalizePedidoResponse,
 const { assertAdminPass, assertEliminacionRegistro } = require('../lib/config-auth');
 const { DocumentoDeleteError } = require('../lib/documento-delete');
 const { calcLinePeso } = require('../lib/producto-precio-linea');
+const { abonoSuperaSaldo, aplicarAbonoSobreSaldo } = require('../lib/cuentas-saldo-centavos');
 const {
   isLineaDescuentoCodprod,
   parseDescuentoLineaBody,
@@ -354,28 +355,27 @@ async function aplicarNotaDebitoACompraCredito(transaction, empnit, comCoddoc, c
   }
   const docSaldo = roundMoney(fac.DOC_SALDO);
   const docAbono = roundMoney(fac.DOC_ABONO);
-  if (abono > docSaldo + 0.001) {
+  if (abonoSuperaSaldo(abono, docSaldo)) {
     const err = new Error(
       `El monto de la nota (${abono}) no puede superar el saldo de la compra (${docSaldo})`
     );
     err.statusCode = 400;
     throw err;
   }
-  const nuevoAbono = roundMoney(docAbono + abono);
-  const nuevoSaldo = roundMoney(docSaldo - abono);
+  const aplicado = aplicarAbonoSobreSaldo(docAbono, docSaldo, abono);
   await transaction
     .request()
     .input('EMPNIT', sql.VarChar, empnit)
     .input('CODDOC', sql.VarChar, comCoddoc)
     .input('CORRELATIVO', sql.Decimal(18, 0), comCorrelativo)
-    .input('DOC_ABONO', sql.Decimal(18, 3), nuevoAbono)
-    .input('DOC_SALDO', sql.Decimal(18, 3), nuevoSaldo)
+    .input('DOC_ABONO', sql.Decimal(18, 3), aplicado.DOC_ABONO)
+    .input('DOC_SALDO', sql.Decimal(18, 3), aplicado.DOC_SALDO)
     .query(`
       UPDATE dbo.DOCUMENTOS
       SET DOC_ABONO = @DOC_ABONO, DOC_SALDO = @DOC_SALDO
       WHERE EMPNIT = @EMPNIT AND CODDOC = @CODDOC AND CORRELATIVO = @CORRELATIVO
     `);
-  return { DOC_ABONO: nuevoAbono, DOC_SALDO: nuevoSaldo };
+  return { DOC_ABONO: aplicado.DOC_ABONO, DOC_SALDO: aplicado.DOC_SALDO };
 }
 
 async function revertirNotaDebitoEnCompraCredito(transaction, empnit, comCoddoc, comCorrelativo, monto) {

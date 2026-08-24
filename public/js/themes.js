@@ -17,6 +17,7 @@ const OnnebThemes = {
     { id: 'autumn', label: 'Otoño', swatchClass: 'theme-swatch-autumn' },
     { id: 'valentine', label: 'Día del cariño', swatchClass: 'theme-swatch-valentine' },
     { id: 'nature', label: 'Naturaleza', swatchClass: 'theme-swatch-nature' },
+    { id: 'fs', label: 'FS', swatchClass: 'theme-swatch-fs' },
   ],
 
   pickerTargets: [
@@ -115,6 +116,7 @@ const OnnebThemes = {
         autumn: '#ea580c',
         valentine: '#ec4899',
         nature: '#16a34a',
+        fs: '#ea580c',
       };
       meta.setAttribute('content', colors[id] || colors.purple);
     }

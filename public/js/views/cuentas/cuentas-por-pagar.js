@@ -14,6 +14,8 @@ const CuentasPorPagarView = {
   _calMonth: null,
   _consolidadoRows: [],
   _consolidadoTotales: null,
+  _resumenRows: [],
+  _resumenTotales: null,
   _loading: false,
   _guardandoRecibo: false,
   _corregiendoSaldos: false,
@@ -125,6 +127,16 @@ const CuentasPorPagarView = {
     const n = Number(value);
     if (Number.isNaN(n)) return 'Q 0.00';
     return n.toLocaleString('es-GT', { style: 'currency', currency: 'GTQ' });
+  },
+
+  roundCentavos(n) {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return 0;
+    return Math.round((x + Number.EPSILON) * 100) / 100;
+  },
+
+  abonoSuperaSaldo(abono, saldo) {
+    return this.roundCentavos(abono) > this.roundCentavos(saldo);
   },
 
   formatQty(value) {
@@ -292,51 +304,30 @@ const CuentasPorPagarView = {
       </div>`;
   },
 
-  proveedorCodigo(r) {
-    if (r.CODPROV != null && r.CODPROV !== '') return String(r.CODPROV);
-    if (r.CODCLIENTE != null && r.CODCLIENTE !== '') return String(r.CODCLIENTE);
-    return '—';
-  },
-
-  buildResumenPorProveedor() {
-    const map = new Map();
-    for (const r of this.filteredRows()) {
-      const cod = this.proveedorCodigo(r);
-      const nombre = r.DOC_NOMCLIE || r.NEGOCIO || '—';
-      const saldo = Number(r.SALDO_PENDIENTE ?? r.DOC_SALDO) || 0;
-      const abono = Number(r.DOC_ABONO) || 0;
-      const cur = map.get(cod) || { codigo: cod, nombre, documentos: 0, saldo: 0, abono: 0 };
-      if ((!cur.nombre || cur.nombre === '—') && nombre && nombre !== '—') cur.nombre = nombre;
-      cur.documentos += 1;
-      cur.saldo += saldo;
-      cur.abono += abono;
-      map.set(cod, cur);
-    }
-    return [...map.values()].sort((a, b) => b.saldo - a.saldo || String(a.nombre).localeCompare(String(b.nombre)));
-  },
-
-  docsForProveedor(codigo) {
-    const key = String(codigo ?? '');
-    return this.filteredRows().filter((r) => this.proveedorCodigo(r) === key);
-  },
-
   renderResumenHtml() {
-    const rows = this.buildResumenPorProveedor();
-    const totalDocs = rows.reduce((s, r) => s + r.documentos, 0);
-    const totalSaldo = rows.reduce((s, r) => s + r.saldo, 0);
-    const totalAbono = rows.reduce((s, r) => s + r.abono, 0);
+    const rows = this._resumenRows || [];
+    const totals = this._resumenTotales || {
+      partes: rows.length,
+      documentos: rows.reduce((s, r) => s + (Number(r.documentos) || 0), 0),
+      abono: rows.reduce((s, r) => s + (Number(r.abono) || 0), 0),
+      saldo: rows.reduce((s, r) => s + (Number(r.saldo) || 0), 0),
+    };
     const body = rows.length
       ? rows
-          .map(
-            (r) => `
-        <tr class="cxp-resumen-row" data-codigo="${this.escapeHtml(r.codigo)}" role="button" tabindex="0">
-          <td class="text-nowrap">${this.escapeHtml(r.codigo)}</td>
+          .map((r) => {
+            const codigo = Number(r.codigo) > 0 ? String(r.codigo) : '0';
+            const codigoLabel = Number(r.codigo) > 0 ? String(r.codigo) : '—';
+            return `
+        <tr class="cxp-resumen-row" data-codigo="${this.escapeHtml(codigo)}"
+          data-nit="${this.escapeHtml(r.nit || '')}" data-nombre-key="${this.escapeHtml(r.nombreKey || '')}"
+          data-nombre="${this.escapeHtml(r.nombre || '')}" role="button" tabindex="0">
+          <td class="text-nowrap">${this.escapeHtml(codigoLabel)}</td>
           <td>${this.escapeHtml(r.nombre)}</td>
           <td class="text-end">${r.documentos}</td>
           <td class="text-end text-success">${this.escapeHtml(this.formatMoney(r.abono))}</td>
           <td class="text-end fw-semibold text-primary">${this.escapeHtml(this.formatMoney(r.saldo))}</td>
-        </tr>`
-          )
+        </tr>`;
+          })
           .join('')
       : `<tr><td colspan="5" class="text-center text-muted py-4">Sin proveedores con saldo pendiente</td></tr>`;
     return `
@@ -355,10 +346,10 @@ const CuentasPorPagarView = {
               <tbody>${body}</tbody>
               <tfoot class="table-light fw-semibold">
                 <tr>
-                  <td colspan="2" class="text-end">${rows.length} proveedor(es)</td>
-                  <td class="text-end">${totalDocs}</td>
-                  <td class="text-end text-success">${this.escapeHtml(this.formatMoney(totalAbono))}</td>
-                  <td class="text-end text-primary">${this.escapeHtml(this.formatMoney(totalSaldo))}</td>
+                  <td colspan="2" class="text-end">${totals.partes || rows.length} proveedor(es)</td>
+                  <td class="text-end">${totals.documentos || 0}</td>
+                  <td class="text-end text-success">${this.escapeHtml(this.formatMoney(totals.abono))}</td>
+                  <td class="text-end text-primary">${this.escapeHtml(this.formatMoney(totals.saldo))}</td>
                 </tr>
               </tfoot>
             </table>
@@ -376,8 +367,10 @@ const CuentasPorPagarView = {
         const vencido = this.isVencido(r);
         const saldo = Number(r.SALDO_PENDIENTE ?? r.DOC_SALDO) || 0;
         const abono = Number(r.DOC_ABONO) || 0;
+        const parte = r.DOC_NOMCLIE || r.NEGOCIO || '—';
         return `<tr class="cxp-cal-day-row${vencido ? ' cxp-row-vencido' : ''}" data-coddoc="${this.escapeHtml(r.CODDOC)}" data-correlativo="${this.escapeHtml(r.CORRELATIVO)}" role="button" tabindex="0">
           <td class="fw-semibold text-nowrap">${this.escapeHtml(r.CODDOC)} #${this.escapeHtml(r.CORRELATIVO)}</td>
+          <td>${this.escapeHtml(parte)}</td>
           <td class="text-nowrap">${this.escapeHtml(this.formatFecha(r.FECHA))}</td>
           <td class="text-nowrap${vencido ? ' text-danger fw-semibold' : ''}">${this.escapeHtml(this.formatFecha(r.VENCIMIENTO))}</td>
           <td class="text-end">${this.escapeHtml(this.formatMoney(r.TOTALPRECIO))}</td>
@@ -394,6 +387,7 @@ const CuentasPorPagarView = {
           <thead class="table-light sticky-top">
             <tr>
               <th>Documento</th>
+              <th>Proveedor</th>
               <th>Fecha</th>
               <th>Vence</th>
               <th class="text-end">Total</th>
@@ -404,47 +398,228 @@ const CuentasPorPagarView = {
           <tbody>${body}</tbody>
           <tfoot class="table-light">
             <tr>
-              <td colspan="4" class="text-end fw-semibold">${rows.length} documento(s)</td>
+              <td colspan="5" class="text-end fw-semibold">${rows.length} documento(s)</td>
               <td class="text-end fw-semibold text-success">${this.escapeHtml(this.formatMoney(totalAbono))}</td>
               <td class="text-end fw-bold text-primary">${this.escapeHtml(this.formatMoney(totalSaldo))}</td>
             </tr>
           </tfoot>
         </table>
       </div>
-      <p class="small text-muted mt-2 mb-0 text-start">Clic en un documento para ver opciones.</p>`;
+      <p class="small text-muted mt-2 mb-0 text-start">Clic en un documento para ver opciones.</p>
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <button type="button" class="btn btn-outline-secondary" id="cxp-resumen-print">
+          <i class="fa-solid fa-print me-1"></i>Imprimir
+        </button>
+        <button type="button" class="btn btn-outline-success" id="cxp-resumen-whatsapp">
+          <i class="fa-brands fa-whatsapp me-1"></i>WhatsApp
+        </button>
+      </div>`;
   },
 
-  async mostrarDocsDeProveedor(codigo) {
-    const rows = this.docsForProveedor(codigo);
-    if (!rows.length) return;
-    const nombre = rows[0].DOC_NOMCLIE || rows[0].NEGOCIO || codigo;
-    await Swal.fire({
-      ...CatalogosUI.modalBase(),
-      title: `${nombre}`,
-      html: `<p class="small text-muted text-start mb-2">Cód. ${this.escapeHtml(String(codigo))} · documentos con saldo pendiente</p>${this.renderResumenDocsTableHtml(rows)}`,
-      width: 860,
-      showConfirmButton: false,
-      showCancelButton: true,
-      cancelButtonText: CatalogosUI.cancelButtonHtml('Cerrar'),
-      didOpen: () => {
-        const onRowPick = (row) => {
-          const coddoc = row.getAttribute('data-coddoc');
-          const correlativo = row.getAttribute('data-correlativo');
-          if (!coddoc || !correlativo) return;
-          Swal.close();
-          this.onRowAction(coddoc, correlativo).catch((err) => F.toast(err.message || 'Error', 'error'));
-        };
-        Swal.getPopup()?.querySelectorAll('.cxp-cal-day-row').forEach((row) => {
-          row.addEventListener('click', () => onRowPick(row));
-          row.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onRowPick(row);
-            }
-          });
-        });
-      },
+  bindModalDocRows(onPick) {
+    Swal.getPopup()?.querySelectorAll('.cxp-cal-day-row').forEach((row) => {
+      row.addEventListener('click', () => onPick(row));
+      row.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onPick(row);
+        }
+      });
     });
+  },
+
+  resumenPendientesTotales(rows) {
+    return (rows || []).reduce(
+      (acc, r) => {
+        acc.importe += Number(r.TOTALPRECIO) || 0;
+        acc.abono += Number(r.DOC_ABONO) || 0;
+        acc.saldo += Number(r.SALDO_PENDIENTE ?? r.DOC_SALDO) || 0;
+        return acc;
+      },
+      { importe: 0, abono: 0, saldo: 0 }
+    );
+  },
+
+  docResumenLabel(r) {
+    return `${String(r.CODDOC || '').trim()} - ${String(r.CORRELATIVO ?? '').trim()}`;
+  },
+
+  bindResumenPendientesActions(ctx) {
+    const popup = Swal.getPopup();
+    popup?.querySelector('#cxp-resumen-print')?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.imprimirResumenPendientes(ctx).catch((err) =>
+        F.toast(err.message || 'No se pudo imprimir', 'error')
+      );
+    });
+    popup?.querySelector('#cxp-resumen-whatsapp')?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.enviarWhatsappResumenPendientes(ctx).catch((err) =>
+        F.toast(err.message || 'No se pudo abrir WhatsApp', 'error')
+      );
+    });
+  },
+
+  buildResumenPendientesWhatsappText(ctx) {
+    const { partyKind, partyName, codigoLabel, rows } = ctx;
+    const t = this.resumenPendientesTotales(rows);
+    const abonoLabel = partyKind === 'proveedor' ? 'Pagos' : 'Abonos';
+    const parts = [];
+    parts.push(`*Facturas pendientes*`);
+    parts.push(`${partyKind === 'proveedor' ? 'Proveedor' : 'Cliente'}: ${partyName || '—'}`);
+    parts.push(`Código: ${codigoLabel}`);
+    parts.push('');
+    (rows || []).forEach((r) => {
+      const saldo = Number(r.SALDO_PENDIENTE ?? r.DOC_SALDO) || 0;
+      parts.push(this.docResumenLabel(r));
+      parts.push(`Importe: ${this.formatMoney(r.TOTALPRECIO)}`);
+      parts.push(`${abonoLabel}: ${this.formatMoney(r.DOC_ABONO)}`);
+      parts.push(`Saldo: ${this.formatMoney(saldo)}`);
+      parts.push('');
+    });
+    parts.push(`*Total importe: ${this.formatMoney(t.importe)}*`);
+    parts.push(`*Total ${abonoLabel.toLowerCase()}: ${this.formatMoney(t.abono)}*`);
+    parts.push(`*Total saldo: ${this.formatMoney(t.saldo)}*`);
+    return parts.join('\n');
+  },
+
+  async imprimirResumenPendientes(ctx) {
+    if (typeof PrintReport === 'undefined') {
+      F.toast('Impresión no disponible', 'warning');
+      return;
+    }
+    const { partyKind, partyName, codigoLabel, rows } = ctx;
+    const t = this.resumenPendientesTotales(rows);
+    const abonoLabel = partyKind === 'proveedor' ? 'Pagos' : 'Abonos';
+    const partyTitle = partyKind === 'proveedor' ? 'Proveedor' : 'Cliente';
+    const nit = String(rows?.[0]?.DOC_NIT || '').trim();
+    const hoy = this.formatFecha(this.todayIsoDate());
+    const bodyRows = (rows || []).length
+      ? rows
+          .map((r) => {
+            const saldo = Number(r.SALDO_PENDIENTE ?? r.DOC_SALDO) || 0;
+            return `<tr>
+              <td>${PrintReport.escapeHtml(this.docResumenLabel(r))}</td>
+              <td>${PrintReport.escapeHtml(this.formatFecha(r.FECHA))}</td>
+              <td>${PrintReport.escapeHtml(this.formatFecha(r.VENCIMIENTO))}</td>
+              <td class="text-end">${PrintReport.escapeHtml(this.formatMoney(r.TOTALPRECIO))}</td>
+              <td class="text-end">${PrintReport.escapeHtml(this.formatMoney(r.DOC_ABONO))}</td>
+              <td class="text-end">${PrintReport.escapeHtml(this.formatMoney(saldo))}</td>
+            </tr>`;
+          })
+          .join('')
+      : '<tr><td colspan="6" style="text-align:center;color:#666">Sin documentos pendientes</td></tr>';
+
+    const bodyHtml = `
+      ${PrintReport.reportHeaderHtml({
+        title: 'Facturas pendientes',
+        subtitleHtml: `
+          <p><strong>${partyTitle}:</strong> ${PrintReport.escapeHtml(partyName || '—')}</p>
+          <p><strong>Código:</strong> ${PrintReport.escapeHtml(String(codigoLabel || '—'))}</p>
+          ${nit ? `<p><strong>NIT:</strong> ${PrintReport.escapeHtml(nit)}</p>` : ''}
+          <p><strong>Fecha:</strong> ${PrintReport.escapeHtml(hoy)}</p>
+        `,
+      })}
+      <table class="ecc-table">
+        <thead>
+          <tr>
+            <th>Documento</th>
+            <th>Fecha</th>
+            <th>Vence</th>
+            <th class="text-end">Importe</th>
+            <th class="text-end">${PrintReport.escapeHtml(abonoLabel)}</th>
+            <th class="text-end">Saldo</th>
+          </tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+        <tfoot>
+          <tr class="totals">
+            <td colspan="3" class="text-end"><strong>${(rows || []).length} documento(s)</strong></td>
+            <td class="text-end"><strong>${PrintReport.escapeHtml(this.formatMoney(t.importe))}</strong></td>
+            <td class="text-end"><strong>${PrintReport.escapeHtml(this.formatMoney(t.abono))}</strong></td>
+            <td class="text-end"><strong>${PrintReport.escapeHtml(this.formatMoney(t.saldo))}</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+    `;
+
+    await PrintReport.openAndPrint(
+      () =>
+        PrintReport.wrapDocument({
+          title: 'Facturas pendientes',
+          bodyHtml,
+          extraStyles: `
+        .ecc-table{font-size:11px}
+        .ecc-table th,.ecc-table td{padding:5px 7px}
+        .ecc-table tbody tr:nth-child(even){background:#fafafa}
+        .ecc-table tfoot td{background:#f0f0f0;border-top:2px solid #999}
+      `,
+        }),
+      'width=900,height=700'
+    );
+  },
+
+  async enviarWhatsappResumenPendientes(ctx) {
+    if (!ctx.rows?.length) {
+      F.toast('No hay documentos para enviar', 'warning');
+      return;
+    }
+    if (typeof DocOpciones === 'undefined') {
+      F.toast('WhatsApp no disponible', 'warning');
+      return;
+    }
+    const text = this.buildResumenPendientesWhatsappText(ctx);
+    await DocOpciones.enviarWhatsappTexto(text);
+  },
+
+  async mostrarDocsDeProveedor(codigo, { nit = '', nombreKey = '', nombre = '' } = {}) {
+    Swal.fire({
+      ...CatalogosUI.modalBase(),
+      title: nombre || `Proveedor ${codigo}`,
+      html: '<p class="text-muted mb-0"><i class="fa-solid fa-spinner fa-spin me-1"></i>Cargando documentos…</p>',
+      showConfirmButton: false,
+      showCancelButton: false,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+    try {
+      const data = await F.fetchJson(this.documentosProveedorUrl({ codigo, nit, nombre: nombreKey }), {
+        cache: 'no-store',
+      });
+      const rows = data.rows || [];
+      const titulo = nombre || rows[0]?.DOC_NOMCLIE || rows[0]?.NEGOCIO || `Proveedor ${codigo}`;
+      const codigoLabel = Number(codigo) > 0 ? String(codigo) : 'sin código';
+      await Swal.fire({
+        ...CatalogosUI.modalBase(),
+        title: `${titulo}`,
+        html: `<p class="small text-muted text-start mb-2">Cód. ${this.escapeHtml(codigoLabel)} · documentos con saldo pendiente</p>${this.renderResumenDocsTableHtml(rows)}`,
+        width: 960,
+        showConfirmButton: false,
+        showCancelButton: true,
+        cancelButtonText: CatalogosUI.cancelButtonHtml('Cerrar'),
+        didOpen: () => {
+          const ctx = {
+            partyKind: 'proveedor',
+            partyName: titulo,
+            codigoLabel,
+            rows,
+          };
+          this.bindModalDocRows((row) => {
+            const coddoc = row.getAttribute('data-coddoc');
+            const correlativo = row.getAttribute('data-correlativo');
+            if (!coddoc || !correlativo) return;
+            Swal.close();
+            this.onRowAction(coddoc, correlativo).catch((err) => F.toast(err.message || 'Error', 'error'));
+          });
+          this.bindResumenPendientesActions(ctx);
+        },
+      });
+    } catch (err) {
+      Swal.close();
+      F.toast(err.message || 'No se pudieron cargar los documentos', 'error');
+    }
   },
 
   monthLabel(year, month) {
@@ -572,6 +747,12 @@ const CuentasPorPagarView = {
     return this._rows;
   },
 
+  async refreshVistaData() {
+    await this.fetchDocumentos();
+    if (this._vistaTipo === 'resumen') await this.fetchResumenProveedores();
+    if (this._vistaTipo === 'consolidado-productos') await this.fetchConsolidadoProductos();
+  },
+
   consolidadoProductosUrl() {
     const emp = F.getEmpNit();
     const params = new URLSearchParams({
@@ -586,6 +767,49 @@ const CuentasPorPagarView = {
     this._consolidadoRows = data.rows || [];
     this._consolidadoTotales = data.totales || null;
     return this._consolidadoRows;
+  },
+
+  consolidadoProductoDetalleUrl(codprod) {
+    const emp = F.getEmpNit();
+    const params = new URLSearchParams({
+      empnit: emp,
+      codprod: String(codprod ?? ''),
+      _: String(Date.now()),
+    });
+    return `/api/cuentas-pagar/consolidado-productos/detalle?${params}`;
+  },
+
+  resumenProveedoresUrl() {
+    const emp = F.getEmpNit();
+    const params = new URLSearchParams({
+      empnit: emp,
+      _: String(Date.now()),
+    });
+    const q = this._filterQuery.trim();
+    if (q) params.set('q', q);
+    return `/api/cuentas-pagar/resumen-proveedores?${params}`;
+  },
+
+  async fetchResumenProveedores() {
+    const data = await F.fetchJson(this.resumenProveedoresUrl(), { cache: 'no-store' });
+    this._resumenRows = data.rows || [];
+    this._resumenTotales = data.totales || null;
+    return this._resumenRows;
+  },
+
+  documentosProveedorUrl({ codigo, nit, nombre }) {
+    const params = {
+      _: String(Date.now()),
+      limit: '10000',
+      codprov: String(codigo ?? 0),
+    };
+    if (!(Number(codigo) > 0)) {
+      params.nit = nit || '';
+      params.nombre = nombre || '';
+    }
+    const q = this._filterQuery.trim();
+    if (q) params.q = q;
+    return this.apiUrl(params);
   },
 
   async corregirSaldos() {
@@ -623,7 +847,7 @@ const CuentasPorPagarView = {
         `Saldos corregidos: ${data.actualizadas ?? 0} de ${data.totalCompras ?? 0} compra(s)`,
         'success'
       );
-      await this.fetchDocumentos();
+      await this.refreshVistaData();
       this._container.innerHTML = this.renderShell();
       this.bindEvents();
     } catch (err) {
@@ -734,7 +958,7 @@ const CuentasPorPagarView = {
         : this._consolidadoRows
             .map(
               (r) => `
-        <tr>
+        <tr class="cxp-prod-row" data-codprod="${this.escapeHtml(r.CODPROD || '')}" data-desprod="${this.escapeHtml(r.DESPROD || '')}" role="button" tabindex="0">
           <td class="fw-semibold text-nowrap">${this.escapeHtml(r.CODPROD || '—')}</td>
           <td>${this.escapeHtml(r.DESPROD || '—')}</td>
           <td class="text-end">${this.escapeHtml(this.formatQty(r.TOTALUNIDADES))}</td>
@@ -775,7 +999,91 @@ const CuentasPorPagarView = {
             </tfoot>
           </table>
         </div>
-      </div>`;
+      </div>
+      <p class="small text-muted mt-2 mb-0">Clic en un producto para ver las compras al crédito que lo contienen.</p>`;
+  },
+
+  renderProductoDocsTableHtml(rows) {
+    if (!rows.length) {
+      return '<p class="text-muted small text-center mb-0 py-3">Sin compras al crédito con este producto</p>';
+    }
+    const body = rows
+      .map((r) => {
+        const parte = r.DOC_NOMCLIE || '—';
+        return `<tr class="cxp-cal-day-row" data-coddoc="${this.escapeHtml(r.CODDOC)}" data-correlativo="${this.escapeHtml(r.CORRELATIVO)}" role="button" tabindex="0">
+          <td class="fw-semibold text-nowrap">${this.escapeHtml(r.CODDOC)} #${this.escapeHtml(r.CORRELATIVO)}</td>
+          <td class="text-nowrap">${this.escapeHtml(this.formatFecha(r.FECHA))}</td>
+          <td>${this.escapeHtml(parte)}</td>
+          <td class="text-nowrap">${this.escapeHtml(r.CODMEDIDA || '—')}</td>
+          <td class="text-end">${this.escapeHtml(this.formatQty(r.CANTIDAD))}</td>
+          <td class="text-end">${this.escapeHtml(this.formatMoney(r.PRECIO))}</td>
+          <td class="text-end fw-semibold text-primary">${this.escapeHtml(this.formatMoney(r.TOTALPRECIO))}</td>
+        </tr>`;
+      })
+      .join('');
+    const totalPrecio = rows.reduce((s, r) => s + (Number(r.TOTALPRECIO) || 0), 0);
+    return `
+      <div class="table-responsive" style="max-height: 420px">
+        <table class="table table-sm table-hover table-striped mb-0">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th>Factura</th>
+              <th>Fecha</th>
+              <th>Proveedor</th>
+              <th>Medida</th>
+              <th class="text-end">Cantidad</th>
+              <th class="text-end">Precio</th>
+              <th class="text-end">Total precio</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+          <tfoot class="table-light">
+            <tr>
+              <td colspan="6" class="text-end fw-semibold">${rows.length} línea(s)</td>
+              <td class="text-end fw-bold text-primary">${this.escapeHtml(this.formatMoney(totalPrecio))}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p class="small text-muted mt-2 mb-0 text-start">Clic en una fila para ver opciones del documento.</p>`;
+  },
+
+  async mostrarDocsDeProducto(codprod, desprod) {
+    Swal.fire({
+      ...CatalogosUI.modalBase(),
+      title: desprod || codprod || 'Producto',
+      html: '<p class="text-muted mb-0"><i class="fa-solid fa-spinner fa-spin me-1"></i>Cargando compras…</p>',
+      showConfirmButton: false,
+      showCancelButton: false,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+    try {
+      const data = await F.fetchJson(this.consolidadoProductoDetalleUrl(codprod), { cache: 'no-store' });
+      const rows = data.rows || [];
+      const titulo = desprod || data.CODPROD || 'Producto';
+      await Swal.fire({
+        ...CatalogosUI.modalBase(),
+        title: titulo,
+        html: `<p class="small text-muted text-start mb-2">Cód. ${this.escapeHtml(String(codprod || '—'))} · compras al crédito con saldo</p>${this.renderProductoDocsTableHtml(rows)}`,
+        width: 980,
+        showConfirmButton: false,
+        showCancelButton: true,
+        cancelButtonText: CatalogosUI.cancelButtonHtml('Cerrar'),
+        didOpen: () => {
+          this.bindModalDocRows((row) => {
+            const coddoc = row.getAttribute('data-coddoc');
+            const correlativo = row.getAttribute('data-correlativo');
+            if (!coddoc || !correlativo) return;
+            Swal.close();
+            this.onRowAction(coddoc, correlativo).catch((err) => F.toast(err.message || 'Error', 'error'));
+          });
+        },
+      });
+    } catch (err) {
+      Swal.close();
+      F.toast(err.message || 'No se pudieron cargar las compras del producto', 'error');
+    }
   },
 
   renderMenuOpcionesHtml() {
@@ -837,7 +1145,7 @@ const CuentasPorPagarView = {
       if (!sumEl) return;
       const sum = this.sumFpagoInputs(prefix);
       sumEl.textContent = `Monto pago: ${this.formatMoney(sum)}`;
-      if (sum > saldoMax + 0.001) {
+      if (this.abonoSuperaSaldo(sum, saldoMax)) {
         sumEl.classList.add('text-danger');
         sumEl.classList.remove('text-primary');
       } else {
@@ -1290,13 +1598,13 @@ const CuentasPorPagarView = {
           Swal.showValidationMessage('Seleccione el documento RCP');
           return false;
         }
-        const monto = Math.round(this.sumFpagoInputs() * 1000) / 1000;
+        const monto = this.roundCentavos(this.sumFpagoInputs());
         if (!Number.isFinite(monto) || monto <= 0) {
           unlock();
           Swal.showValidationMessage('Indique el monto del pago en las formas de pago');
           return false;
         }
-        if (monto > saldo + 0.001) {
+        if (this.abonoSuperaSaldo(monto, saldo)) {
           unlock();
           Swal.showValidationMessage(`El pago no puede superar el saldo (${this.formatMoney(saldo)})`);
           return false;
@@ -1327,7 +1635,7 @@ const CuentasPorPagarView = {
     if (!isConfirmed || !value) return;
 
     F.toast(`Pago ${value.pago?.CODDOC}-${value.pago?.CORRELATIVO} registrado`, 'success');
-    await this.fetchDocumentos();
+    await this.refreshVistaData();
     this._container.innerHTML = this.renderShell();
     this.bindEvents();
   },
@@ -1410,6 +1718,8 @@ const CuentasPorPagarView = {
       try {
         this._loading = true;
         await this.fetchDocumentos();
+        if (this._vistaTipo === 'resumen') await this.fetchResumenProveedores();
+        if (this._vistaTipo === 'consolidado-productos') await this.fetchConsolidadoProductos();
         this._container.innerHTML = this.renderShell();
         this.bindEvents();
         this._container?.querySelector('#cxp-search')?.focus();
@@ -1438,6 +1748,14 @@ const CuentasPorPagarView = {
           await this.fetchConsolidadoProductos();
         } catch (err) {
           F.toast(err.message || 'No se pudo cargar el consolidado', 'error');
+        }
+      }
+      if (value === 'resumen') {
+        this._container.innerHTML = `<div class="text-center text-muted py-4 w-100"><i class="fa-solid fa-spinner fa-spin me-2"></i>Cargando resumen por proveedor…</div>`;
+        try {
+          await this.fetchResumenProveedores();
+        } catch (err) {
+          F.toast(err.message || 'No se pudo cargar el resumen', 'error');
         }
       }
       this._container.innerHTML = this.renderShell();
@@ -1521,8 +1839,12 @@ const CuentasPorPagarView = {
 
     const onResumenPick = (row) => {
       const codigo = row.getAttribute('data-codigo');
-      if (!codigo) return;
-      this.mostrarDocsDeProveedor(codigo).catch((err) => F.toast(err.message || 'Error', 'error'));
+      if (codigo == null || codigo === '') return;
+      this.mostrarDocsDeProveedor(codigo, {
+        nit: row.getAttribute('data-nit') || '',
+        nombreKey: row.getAttribute('data-nombre-key') || '',
+        nombre: row.getAttribute('data-nombre') || '',
+      }).catch((err) => F.toast(err.message || 'Error', 'error'));
     };
     this._container?.querySelectorAll('.cxp-resumen-row').forEach((row) => {
       row.addEventListener('click', () => onResumenPick(row));
@@ -1530,6 +1852,22 @@ const CuentasPorPagarView = {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onResumenPick(row);
+        }
+      });
+    });
+
+    const onProdPick = (row) => {
+      const codprod = row.getAttribute('data-codprod');
+      const desprod = row.getAttribute('data-desprod') || '';
+      if (codprod == null) return;
+      this.mostrarDocsDeProducto(codprod, desprod).catch((err) => F.toast(err.message || 'Error', 'error'));
+    };
+    this._container?.querySelectorAll('.cxp-prod-row').forEach((row) => {
+      row.addEventListener('click', () => onProdPick(row));
+      row.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onProdPick(row);
         }
       });
     });

@@ -866,29 +866,47 @@ const NotasCreditoView = {
     F.toast('Nota de crédito finalizada', 'success');
     this._pedido = null;
     await this.showList();
-    await this.maybeAutoCertificarTrasFinalizar(coddocFinalizar, correlativoFinalizar, tipodocFinalizar);
+    const cert = await this.maybeAutoCertificarTrasFinalizar(
+      coddocFinalizar,
+      correlativoFinalizar,
+      tipodocFinalizar
+    );
+    if (typeof DocOpciones !== 'undefined' && DocOpciones.maybeImprimirTicketTrasFinalizar) {
+      await DocOpciones.maybeImprimirTicketTrasFinalizar({
+        alreadyPrintedSistema: !!(cert && cert.printedSistema),
+        onImprimir: () => this.imprimirPedido(coddocFinalizar, correlativoFinalizar),
+      });
+    }
   },
 
   async maybeAutoCertificarTrasFinalizar(coddoc, correlativo, tipodoc) {
     const tipo = String(tipodoc || '').trim().toUpperCase();
-    if (typeof DocOpciones === 'undefined' || !DocOpciones.esTipoCertificableFel(tipo)) return;
+    if (typeof DocOpciones === 'undefined' || !DocOpciones.esTipoCertificableFel(tipo)) {
+      return { certifico: false, printedSistema: false };
+    }
     let auto = false;
     try {
       auto = await DocOpciones.fetchCertificaAlFinalizar();
     } catch (_) {
-      return;
+      return { certifico: false, printedSistema: false };
     }
-    if (!auto) return;
+    if (!auto) return { certifico: false, printedSistema: false };
+    let printedSistema = false;
     try {
       await DocOpciones.certificarYMostrarFormatos(coddoc, correlativo, {
-        onImprimirSistema: () => this.imprimirPedido(coddoc, correlativo),
+        onImprimirSistema: async () => {
+          printedSistema = true;
+          await this.imprimirPedido(coddoc, correlativo);
+        },
       });
       await this.fetchPedidosList();
       this.refreshListDom();
+      return { certifico: true, printedSistema };
     } catch (err) {
       F.alert('Error FEL', err.message || 'No se pudo certificar automáticamente', 'error');
       await this.fetchPedidosList().catch(() => {});
       this.refreshListDom();
+      return { certifico: false, printedSistema: false };
     }
   },
 

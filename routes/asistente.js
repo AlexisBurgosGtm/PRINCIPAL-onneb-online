@@ -3,7 +3,7 @@ const { isDbConfigured } = require('../config/database');
 const { searchMovimientoProductos } = require('../lib/movimiento-productos-search');
 
 const router = express.Router();
-const LIST_LIMIT = 6;
+const PRODUCT_LIMIT = 10;
 
 function getEmpNitFromReq(req) {
   return String(req.query.empnit || req.headers['x-emp-nit'] || '').trim();
@@ -16,6 +16,8 @@ function publicPrecioRow(row) {
     DESPROD2: String(row?.DESPROD2 || '').trim(),
     CODMEDIDA: String(row?.CODMEDIDA || '').trim(),
     PRECIO: Number(row?.PRECIO) || 0,
+    EQUIVALE: Number(row?.EQUIVALE) || 0,
+    EXISTENCIA: Number(row?.EXISTENCIA) || 0,
     MAYOREOA: Number(row?.MAYOREOA) || 0,
     MAYOREOB: Number(row?.MAYOREOB) || 0,
     MAYOREOC: Number(row?.MAYOREOC) || 0,
@@ -34,11 +36,17 @@ router.get('/productos', async (req, res) => {
     const data = await searchMovimientoProductos(pool, {
       empnit,
       q,
-      limit: LIST_LIMIT,
+      limitProducts: PRODUCT_LIMIT,
       includeMayoreo: true,
     });
-    const rows = (data.rows || []).slice(0, LIST_LIMIT).map(publicPrecioRow);
-    res.json({ rows, q: data.q || q || null, limit: LIST_LIMIT });
+    const rows = (data.rows || []).map(publicPrecioRow);
+    const productos = new Set(rows.map((r) => r.CODPROD)).size;
+    res.json({
+      rows,
+      q: data.q || q || null,
+      limit: PRODUCT_LIMIT,
+      productos,
+    });
   } catch (err) {
     console.warn('[API GET /asistente/productos]', err.message);
     res.status(500).json({ error: err.message });

@@ -230,10 +230,8 @@ const LibroComprasView = {
           </div>
           <div class="libro-compras-badge small text-muted mt-2" id="libro-compras-count">${this.escapeHtml(this.badgeText())}</div>
           <div class="small text-muted mt-1">
-            Documentos contables (<strong>CONTABLE = SI</strong>):
-            <strong>COM</strong> (IVA desglosado),
-            <strong>COP</strong> (pequeño contribuyente → Exentas, sin IVA),
-            <strong>DVP</strong> (nota crédito: resta con IVA normal).
+            Documentos: <strong>COM</strong> / <strong>COP</strong> (CONTABLE = SI);
+            <strong>DVP</strong> (nota crédito proveedor: siempre, resta con IVA).
             Serie/número/fecha: FEL o factura proveedor. Estado <strong>A</strong> = anulado.
           </div>
         </div>

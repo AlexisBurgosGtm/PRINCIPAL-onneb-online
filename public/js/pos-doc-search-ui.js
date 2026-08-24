@@ -314,6 +314,8 @@ const PosDocSearchUI = {
     const container = view._container;
     if (!container) return;
 
+    view._posDocSearchKeepAfterAdd = !!opts.keepProductSearchAfterAdd;
+
     const getEditable = opts.getEditable || (() => true);
     const buscarProductos = opts.buscarProductos || (() => {});
     const onProductPick = opts.onProductPick || (() => {});
@@ -435,6 +437,10 @@ const PosDocSearchUI = {
   afterProductAdded(view, prefix) {
     const container = view?._container;
     if (!container) return;
+    if (view._posDocSearchKeepAfterAdd) {
+      this.focusProductSearch(container, prefix, view);
+      return;
+    }
     this.searchInputs(container, prefix).forEach((inp) => {
       if (inp) inp.value = '';
     });

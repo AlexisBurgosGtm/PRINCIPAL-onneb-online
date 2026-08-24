@@ -206,7 +206,12 @@ const TareasView = {
           const tdClass = `${align}${c.cellClass ? ` ${c.cellClass}` : ''}`.trim();
           return `<td${tdClass ? ` class="${tdClass}"` : ''}>${html}</td>`;
         }).join('');
-        return `<tr>${cells}<td class="text-end">${CatalogosUI.accionesRow(row.ID, 'id')}</td></tr>`;
+        return `<tr>${cells}<td class="text-end text-nowrap">
+          <button type="button" class="btn btn-sm btn-outline-secondary tareas-print me-1" data-id="${this.escapeHtml(row.ID)}" title="Imprimir">
+            <i class="fa-solid fa-print" aria-hidden="true"></i>
+          </button>
+          ${CatalogosUI.accionesRow(row.ID, 'id')}
+        </td></tr>`;
       })
       .join('');
   },
@@ -298,6 +303,15 @@ const TareasView = {
       this._estadoClickContainer.removeEventListener('click', this._estadoClickHandler);
     }
     this._estadoClickHandler = (e) => {
+      const printBtn = e.target.closest('.tareas-print');
+      if (printBtn && this._container?.contains(printBtn)) {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = printBtn.getAttribute('data-id');
+        const row = id != null ? this.findRow(id) : null;
+        if (row) this.printTarea(row);
+        return;
+      }
       const btn = e.target.closest('.tareas-estado-toggle');
       if (!btn || !this._container?.contains(btn)) return;
       e.preventDefault();
@@ -314,6 +328,80 @@ const TareasView = {
     TareasViewBase.bindEvents.call(this);
     this.bindFilterEstado();
     this.bindEstadoClickDelegation();
+  },
+
+  formatFechaPrint(value) {
+    const d = this.parseFecha(value);
+    if (!d) {
+      const s = String(value || '').trim();
+      return s ? s.slice(0, 10) : '—';
+    }
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}/${mm}/${d.getFullYear()}`;
+  },
+
+  async printTarea(row) {
+    if (!row || typeof PrintReport === 'undefined') {
+      F.toast('No se puede imprimir en este momento', 'error');
+      return;
+    }
+    try {
+      await PrintReport.ensureLogo();
+      const id = row.ID ?? '';
+      const dias = this.formatDias(row.FECHA);
+      const diasLabel =
+        dias === '—' ? '—' : dias === '0' ? 'Creada hoy' : `${dias} día(s) desde la creación`;
+      const bodyHtml = `
+        ${PrintReport.reportHeaderHtml({
+          title: 'Tarea',
+          subtitleHtml: `
+            <p><strong>No.:</strong> ${PrintReport.escapeHtml(id)}</p>
+            <p><strong>Fecha:</strong> ${PrintReport.escapeHtml(this.formatFechaPrint(row.FECHA))}</p>
+            <p class="small text-muted mb-0">Seguimiento de pendientes · Operaciones</p>
+          `,
+        })}
+        <table class="table table-sm tareas-print-table">
+          <tr><td>Tarea</td><td class="fw-semibold">${PrintReport.escapeHtml(row.TAREA || '—')}</td></tr>
+          <tr><td>Responsable</td><td class="text-end">${PrintReport.escapeHtml(row.RESPONSABLE || '—')}</td></tr>
+          <tr><td>Prioridad</td><td class="text-end">${PrintReport.escapeHtml(String(row.PRIORIDAD || '—').toUpperCase())}</td></tr>
+          <tr><td>Estado</td><td class="text-end">${PrintReport.escapeHtml(this.normalizeEstado(row.ST))}</td></tr>
+          <tr><td>Hora</td><td class="text-end">${PrintReport.escapeHtml(this.formatHora(row))}</td></tr>
+          <tr><td>Antigüedad</td><td class="text-end">${PrintReport.escapeHtml(diasLabel)}</td></tr>
+        </table>
+        <div class="tareas-print-firmas">
+          <div class="tareas-print-firma">Asignó</div>
+          <div class="tareas-print-firma">Responsable</div>
+        </div>`;
+      await PrintReport.openAndPrint(
+        () =>
+          PrintReport.wrapDocument({
+            title: `Tarea #${id}`,
+            bodyHtml,
+            extraStyles: `
+              table.tareas-print-table{font-size:13px;}
+              table.tareas-print-table td{padding:8px 10px;vertical-align:top;}
+              table.tareas-print-table td:first-child{width:32%;color:#555;}
+              .tareas-print-firmas{
+                margin-top:5.5rem;
+                display:flex;
+                justify-content:space-between;
+                gap:2.5rem;
+              }
+              .tareas-print-firma{
+                flex:1;
+                text-align:center;
+                border-top:1px solid #333;
+                padding-top:.55rem;
+                min-height:3.25rem;
+              }
+            `,
+          }),
+        'width=720,height=780'
+      );
+    } catch (err) {
+      F.toast(err.message || 'No se pudo imprimir', 'error');
+    }
   },
 
   async onToggleEstado(id, stActual) {

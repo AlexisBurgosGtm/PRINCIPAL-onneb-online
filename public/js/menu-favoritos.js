@@ -159,50 +159,68 @@ const MenuFavoritos = {
             </div>
           </div>
           <div class="asistente-modal-col">
-            <div class="asistente-card mb-2">
-              <div class="asistente-card-title"><i class="fa-solid fa-calculator me-1"></i>Cálculo de precio</div>
-              <div class="row g-2">
-                <div class="col-6">
-                  <label class="form-label small mb-0" for="asist-costo">Costo</label>
-                  <input type="number" step="0.01" min="0" id="asist-costo" class="form-control form-control-sm" placeholder="0.00">
+            <div class="asistente-card asistente-tools-card">
+              <div class="asistente-tabs" role="tablist" aria-label="Herramientas del asistente">
+                <button type="button" class="asistente-tab is-active" data-asist-tab="calcular" role="tab" aria-selected="true">
+                  <i class="fa-solid fa-calculator" aria-hidden="true"></i>CALCULAR
+                </button>
+                <button type="button" class="asistente-tab" data-asist-tab="documentos" role="tab" aria-selected="false">
+                  <i class="fa-solid fa-file-lines" aria-hidden="true"></i>DOCUMENTOS
+                </button>
+                <button type="button" class="asistente-tab" data-asist-tab="precios" role="tab" aria-selected="false">
+                  <i class="fa-solid fa-tags" aria-hidden="true"></i>PRECIOS
+                </button>
+              </div>
+              <div class="asistente-tab-panels">
+                <div class="asistente-tab-panel is-active" data-asist-panel="calcular" role="tabpanel">
+                  <div class="row g-2">
+                    <div class="col-6">
+                      <label class="form-label small mb-0" for="asist-costo">Costo</label>
+                      <input type="number" step="0.01" min="0" id="asist-costo" class="form-control form-control-sm" placeholder="0.00">
+                    </div>
+                    <div class="col-6">
+                      <label class="form-label small mb-0" for="asist-ganancia">% Ganancia</label>
+                      <input type="number" step="0.01" id="asist-ganancia" class="form-control form-control-sm" placeholder="0" value="30">
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label small mb-0" for="asist-precio">Precio de venta (margen sobre venta)</label>
+                      <p class="small text-muted mb-1">Costo ÷ (1 − %). El % es ganancia sobre el precio final.</p>
+                      <input type="text" id="asist-precio" class="form-control form-control-sm text-danger fw-bold" readonly value="Q 0.00">
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label small mb-0" for="asist-precio-markup">Precio de venta (costo + %)</label>
+                      <p class="small text-muted mb-1">Costo × (1 + %). El % se aplica sobre el costo.</p>
+                      <input type="text" id="asist-precio-markup" class="form-control form-control-sm text-primary fw-bold" readonly value="Q 0.00">
+                    </div>
+                  </div>
                 </div>
-                <div class="col-6">
-                  <label class="form-label small mb-0" for="asist-ganancia">% Ganancia</label>
-                  <input type="number" step="0.01" id="asist-ganancia" class="form-control form-control-sm" placeholder="0" value="30">
+                <div class="asistente-tab-panel" data-asist-panel="documentos" role="tabpanel" hidden>
+                  <div class="row g-2 align-items-end">
+                    <div class="col-5">
+                      <label class="form-label small mb-0" for="asist-coddoc">Serie (CODDOC)</label>
+                      <input type="text" id="asist-coddoc" class="form-control form-control-sm" placeholder="Ej. FAC" autocomplete="off">
+                    </div>
+                    <div class="col-4">
+                      <label class="form-label small mb-0" for="asist-corr">Correlativo</label>
+                      <input type="number" step="1" min="1" id="asist-corr" class="form-control form-control-sm" placeholder="0">
+                    </div>
+                    <div class="col-3">
+                      <button type="button" class="btn btn-sm btn-primary w-100" id="asist-doc-buscar">Buscar</button>
+                    </div>
+                    <div class="col-12">
+                      <div id="asist-doc-result" class="asistente-doc-result small text-muted">Ingrese serie y correlativo para consultar.</div>
+                    </div>
+                  </div>
                 </div>
-                <div class="col-12">
-                  <label class="form-label small mb-0" for="asist-precio">Precio de venta</label>
-                  <input type="text" id="asist-precio" class="form-control form-control-sm text-danger fw-bold" readonly value="Q 0.00">
+                <div class="asistente-tab-panel" data-asist-panel="precios" role="tabpanel" hidden>
+                  <div class="input-group input-group-sm mb-2">
+                    <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    <input type="search" id="asist-prod-q" class="form-control" placeholder="Código o descripción…" autocomplete="off">
+                    <button type="button" class="btn btn-primary" id="asist-prod-buscar">Buscar</button>
+                  </div>
+                  <div id="asist-prod-result" class="asistente-prod-result small text-muted">Escriba y pulse Buscar o Enter (máx. 10 productos).</div>
                 </div>
               </div>
-            </div>
-            <div class="asistente-card mb-2">
-              <div class="asistente-card-title"><i class="fa-solid fa-file-lines me-1"></i>Buscar Documento</div>
-              <div class="row g-2 align-items-end">
-                <div class="col-5">
-                  <label class="form-label small mb-0" for="asist-coddoc">Serie (CODDOC)</label>
-                  <input type="text" id="asist-coddoc" class="form-control form-control-sm" placeholder="Ej. FAC" autocomplete="off">
-                </div>
-                <div class="col-4">
-                  <label class="form-label small mb-0" for="asist-corr">Correlativo</label>
-                  <input type="number" step="1" min="1" id="asist-corr" class="form-control form-control-sm" placeholder="0">
-                </div>
-                <div class="col-3">
-                  <button type="button" class="btn btn-sm btn-primary w-100" id="asist-doc-buscar">Buscar</button>
-                </div>
-                <div class="col-12">
-                  <div id="asist-doc-result" class="asistente-doc-result small text-muted">Ingrese serie y correlativo para consultar.</div>
-                </div>
-              </div>
-            </div>
-            <div class="asistente-card">
-              <div class="asistente-card-title"><i class="fa-solid fa-tags me-1"></i>Consultar precios</div>
-              <div class="input-group input-group-sm mb-2">
-                <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-                <input type="search" id="asist-prod-q" class="form-control" placeholder="Código o descripción…" autocomplete="off">
-                <button type="button" class="btn btn-primary" id="asist-prod-buscar">Buscar</button>
-              </div>
-              <div id="asist-prod-result" class="asistente-prod-result small text-muted">Escriba y pulse Buscar o Enter (máx. 6).</div>
             </div>
           </div>
         </div>`,
@@ -222,6 +240,7 @@ const MenuFavoritos = {
           });
         });
         this.bindAsistenteTools(popup);
+        this.bindAsistenteTabs(popup);
       },
     });
   },
@@ -240,25 +259,68 @@ const MenuFavoritos = {
     return s;
   },
 
+  formatExistencia(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    return n.toLocaleString('es-GT', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+  },
+
+  bindAsistenteTabs(popup) {
+    if (!popup) return;
+    const tabs = Array.from(popup.querySelectorAll('.asistente-tab[data-asist-tab]'));
+    const panels = Array.from(popup.querySelectorAll('.asistente-tab-panel[data-asist-panel]'));
+    if (!tabs.length) return;
+
+    const activate = (key) => {
+      tabs.forEach((tab) => {
+        const on = tab.getAttribute('data-asist-tab') === key;
+        tab.classList.toggle('is-active', on);
+        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      panels.forEach((panel) => {
+        const on = panel.getAttribute('data-asist-panel') === key;
+        panel.classList.toggle('is-active', on);
+        if (on) panel.removeAttribute('hidden');
+        else panel.setAttribute('hidden', '');
+      });
+      const focusMap = {
+        calcular: '#asist-costo',
+        documentos: '#asist-coddoc',
+        precios: '#asist-prod-q',
+      };
+      popup.querySelector(focusMap[key] || '')?.focus();
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        activate(tab.getAttribute('data-asist-tab'));
+      });
+    });
+  },
+
   bindAsistenteTools(popup) {
     if (!popup) return;
     const costoEl = popup.querySelector('#asist-costo');
     const ganEl = popup.querySelector('#asist-ganancia');
     const precioEl = popup.querySelector('#asist-precio');
+    const precioMarkupEl = popup.querySelector('#asist-precio-markup');
 
     const updatePrecio = () => {
       const costo = Number(costoEl?.value);
       const pct = Number(ganEl?.value);
       if (!Number.isFinite(costo) || costo < 0 || !Number.isFinite(pct)) {
         if (precioEl) precioEl.value = 'Q 0.00';
+        if (precioMarkupEl) precioMarkupEl.value = 'Q 0.00';
         return;
       }
       if (pct >= 100) {
         if (precioEl) precioEl.value = '—';
-        return;
+      } else {
+        const precioMargen = (costo * 100) / (100 - pct);
+        if (precioEl) precioEl.value = this.formatMoney(precioMargen);
       }
-      const precio = (costo * 100) / (100 - pct);
-      if (precioEl) precioEl.value = this.formatMoney(precio);
+      const precioMarkup = costo * (1 + pct / 100);
+      if (precioMarkupEl) precioMarkupEl.value = this.formatMoney(precioMarkup);
     };
     costoEl?.addEventListener('input', updatePrecio);
     ganEl?.addEventListener('input', updatePrecio);
@@ -370,22 +432,44 @@ const MenuFavoritos = {
     if (!rows.length) {
       return '<p class="small text-muted mb-0">No se encontraron productos.</p>';
     }
+    const groups = [];
+    const byCode = new Map();
+    for (const r of rows) {
+      const code = String(r.CODPROD || '').trim();
+      if (!code) continue;
+      if (!byCode.has(code)) {
+        const nombre = [r.DESPROD, r.DESPROD2].filter(Boolean).join(' · ') || '—';
+        const group = { CODPROD: code, nombre, precios: [] };
+        byCode.set(code, group);
+        groups.push(group);
+      }
+      byCode.get(code).precios.push(r);
+    }
     return `
       <div class="asistente-prod-list">
-        ${rows
-          .map((r) => {
-            const nombre = [r.DESPROD, r.DESPROD2].filter(Boolean).join(' · ') || '—';
-            const med = String(r.CODMEDIDA || '').trim();
-            return `
-          <div class="asistente-prod-item">
+        ${groups
+          .map(
+            (g) => `
+          <div class="asistente-prod-group">
             <div class="asistente-prod-info">
-              <div class="asistente-prod-code">${this.escapeHtml(r.CODPROD)}</div>
-              <div class="asistente-prod-name">${this.escapeHtml(nombre)}</div>
-              ${med ? `<div class="asistente-prod-med">${this.escapeHtml(med)}</div>` : ''}
+              <div class="asistente-prod-code">${this.escapeHtml(g.CODPROD)}</div>
+              <div class="asistente-prod-name">${this.escapeHtml(g.nombre)}</div>
             </div>
-            <div class="asistente-prod-precio">${this.escapeHtml(this.formatMoney(r.PRECIO))}</div>
-          </div>`;
-          })
+            <div class="asistente-prod-prices">
+              ${g.precios
+                .map((r) => {
+                  const med = String(r.CODMEDIDA || '').trim() || '—';
+                  return `
+                <div class="asistente-prod-price-row">
+                  <span class="asistente-prod-med">${this.escapeHtml(med)}</span>
+                  <span class="asistente-prod-exist" title="Existencia en esta medida (saldo / equivale)">Exist. ${this.escapeHtml(this.formatExistencia(r.EXISTENCIA))}</span>
+                  <span class="asistente-prod-precio">${this.escapeHtml(this.formatMoney(r.PRECIO))}</span>
+                </div>`;
+                })
+                .join('')}
+            </div>
+          </div>`
+          )
           .join('')}
       </div>`;
   },
@@ -402,7 +486,7 @@ const MenuFavoritos = {
       if (!q) {
         if (resultEl) {
           resultEl.className = 'asistente-prod-result small text-muted';
-          resultEl.textContent = 'Escriba y pulse Buscar o Enter (máx. 6).';
+          resultEl.textContent = 'Escriba y pulse Buscar o Enter (máx. 10 productos).';
         }
         return;
       }
@@ -421,9 +505,9 @@ const MenuFavoritos = {
       try {
         const url =
           `/api/asistente/productos?empnit=${encodeURIComponent(F.getEmpNit())}` +
-          `&q=${encodeURIComponent(q)}&limit=6&_=${Date.now()}`;
+          `&q=${encodeURIComponent(q)}&_=${Date.now()}`;
         const data = await F.fetchJson(url, { cache: 'no-store' });
-        const rows = (data.rows || []).slice(0, 6);
+        const rows = data.rows || [];
         if (resultEl) {
           resultEl.className = 'asistente-prod-result small';
           resultEl.innerHTML = this.renderAsistenteProductosHtml(rows);
@@ -453,7 +537,7 @@ const MenuFavoritos = {
       if (!q) {
         if (resultEl) {
           resultEl.className = 'asistente-prod-result small text-muted';
-          resultEl.textContent = 'Escriba y pulse Buscar o Enter (máx. 6).';
+          resultEl.textContent = 'Escriba y pulse Buscar o Enter (máx. 10 productos).';
         }
         return;
       }

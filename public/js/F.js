@@ -360,10 +360,18 @@ let F = {
     const isMutation = this.isMutationMethod(options.method);
     if (isMutation) this.beginMutation();
     try {
+      const headers = { Accept: 'application/json', ...options.headers };
+      try {
+        if (this.session('user')?.superUser) {
+          headers['X-Super-User'] = '1';
+        }
+      } catch {
+        /* sesión no disponible */
+      }
       const res = await fetch(url, {
         cache: options.cache ?? 'no-store',
-        headers: { Accept: 'application/json', ...options.headers },
         ...options,
+        headers,
       });
       if (!res.ok) {
         let message = `HTTP ${res.status}`;

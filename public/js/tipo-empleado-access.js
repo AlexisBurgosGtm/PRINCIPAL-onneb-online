@@ -32,6 +32,7 @@ const TipoEmpleadoAccess = {
     'embarques',
     'asignacion-pedidos',
     'pendientes-entrega',
+    'despachos-en-cocina',
     'cuentas-cobrar',
     'recibos-caja-cxc',
     'cuentas-pagar',
@@ -54,6 +55,7 @@ const TipoEmpleadoAccess = {
     'productos-precios',
     'lista-precios',
     'inventario',
+    'relleno-inventario',
     'entradas-inventario',
     'salidas-inventario',
     'inventario-retroactivo',
@@ -67,6 +69,7 @@ const TipoEmpleadoAccess = {
     'resumen-del-dia',
     'autorizaciones',
     'documentos-eliminados',
+    'promociones',
     'auditoria-cajas',
     'reportes-ventas',
     'subir-catalogo',
@@ -129,6 +132,7 @@ const TipoEmpleadoAccess = {
       'embarques',
       'asignacion-pedidos',
       'pendientes-entrega',
+      'despachos-en-cocina',
       'cuentas-cobrar',
       'recibos-caja-cxc',
       'cuentas-pagar',
@@ -151,6 +155,7 @@ const TipoEmpleadoAccess = {
       'productos-precios',
       'lista-precios',
       'inventario',
+      'relleno-inventario',
       'entradas-inventario',
       'salidas-inventario',
       'inventario-retroactivo',
@@ -164,6 +169,7 @@ const TipoEmpleadoAccess = {
       'resumen-del-dia',
       'autorizaciones',
       'documentos-eliminados',
+      'promociones',
       'auditoria-cajas',
       'reportes-ventas',
       'subir-catalogo',
@@ -189,6 +195,7 @@ const TipoEmpleadoAccess = {
       'fraccionamiento-fac',
       'tareas',
       'inventario',
+      'relleno-inventario',
     ],
     4: ['inicio', 'clientes', 'rutas', 'documentos', 'lista-facturas', 'resumen-del-dia'],
     5: [
@@ -196,6 +203,7 @@ const TipoEmpleadoAccess = {
       'productos-precios',
       'lista-precios',
       'inventario',
+      'relleno-inventario',
       'entradas-inventario',
       'salidas-inventario',
       'actualizacion-inventario',
@@ -203,6 +211,7 @@ const TipoEmpleadoAccess = {
       'crear-traslado',
       'recibir-traslado',
       'pendientes-entrega',
+      'despachos-en-cocina',
       'embarques',
       'asignacion-pedidos',
     ],
@@ -325,6 +334,11 @@ const TipoEmpleadoAccess = {
     const key = String(menuKey || '').trim();
     if (!key) return false;
     if (key === 'licencia') return true;
+    // Super usuario: Actualizador BD siempre, aunque no esté en la licencia.
+    if (key === 'updater') {
+      const user = sessionUser || this.getSessionUser();
+      if (user?.superUser) return true;
+    }
     if (typeof LicenseAccess !== 'undefined' && !LicenseAccess.canAccessMenu(key)) {
       return false;
     }
@@ -372,7 +386,9 @@ const TipoEmpleadoAccess = {
       const li = link.closest('li');
       if (!li) return;
       let visible = false;
-      if (key === 'licencia') {
+      if (typeof LicenseAccess !== 'undefined' && LicenseAccess.isLicenseExemptMenu?.(key)) {
+        visible = true;
+      } else if (key === 'licencia') {
         visible = true;
       } else if (!licenseOk && typeof LicenseAccess !== 'undefined') {
         visible = LicenseAccess.canAccessMenu(key);

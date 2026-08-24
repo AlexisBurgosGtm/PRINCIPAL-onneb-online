@@ -1,0 +1,17 @@
+/**
+ * Operaciones → Vales de Caja
+ * Scroll de página (main-content usa overflow:hidden + align-items-stretch).
+ */
+
+.main-content > .vales-caja-view,
+.vales-caja-view {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  align-self: stretch;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 5rem;
+}

@@ -22,6 +22,9 @@ const AuditoriaCajasView = {
   _totalDocs: 0,
 
   DOC_COLSPAN: 12,
+  TIPODOC_FACTURA: ['FAC', 'FEF', 'FES', 'FEC'],
+  TIPODOC_DEVOLUCION: ['DEV', 'FNC'],
+  TIPODOC_RECIBOS: ['RCC', 'PRC'],
 
   escapeHtml(value) {
     if (value === null || value === undefined) return '';
@@ -548,6 +551,193 @@ const AuditoriaCajasView = {
     return grupos.map((g) => this.renderGrupoTable(g)).join('');
   },
 
+  allDocRows() {
+    const rows = [];
+    for (const g of this._grupos || []) {
+      for (const r of g.rows || []) rows.push(r);
+    }
+    return rows;
+  },
+
+  inTipoSet(row, set) {
+    return set.has(String(row.TIPODOC || '').trim().toUpperCase());
+  },
+
+  filterRowsByRubro(filtro) {
+    const rows = this.allDocRows();
+    const fac = new Set(this.TIPODOC_FACTURA);
+    const dev = new Set(this.TIPODOC_DEVOLUCION);
+    const rcc = new Set(this.TIPODOC_RECIBOS);
+    switch (String(filtro || '')) {
+      case 'todos':
+        return rows;
+      case 'ventas':
+        return rows.filter((r) => this.inTipoSet(r, fac));
+      case 'devoluciones':
+        return rows.filter((r) => this.inTipoSet(r, dev));
+      case 'credito':
+        return rows.filter(
+          (r) =>
+            String(r.CONCRE || '').toUpperCase() === 'CRE' &&
+            !this.inTipoSet(r, dev) &&
+            !this.inTipoSet(r, rcc)
+        );
+      case 'recibos':
+        return rows.filter((r) => this.inTipoSet(r, rcc));
+      case 'efectivo':
+        return rows.filter((r) => Number(r.FPAGO_EFECTIVO) > 0 && !this.inTipoSet(r, dev));
+      case 'tarjeta':
+        return rows.filter((r) => Number(r.FPAGO_TARJETA) > 0 && !this.inTipoSet(r, dev));
+      case 'deposito':
+        return rows.filter((r) => Number(r.FPAGO_DEPOSITO) > 0 && !this.inTipoSet(r, dev));
+      case 'cheque':
+        return rows.filter((r) => Number(r.FPAGO_CHEQUE) > 0 && !this.inTipoSet(r, dev));
+      case 'vales-caja':
+        return rows.filter((r) => r.ES_VALE_CAJA);
+      case 'retiros':
+        return rows.filter((r) => r.ES_RETIRO);
+      case 'anuladas':
+        return rows.filter((r) => r.STATUS === 'A' && this.inTipoSet(r, fac));
+      default:
+        return [];
+    }
+  },
+
+  rubroTitulo(filtro) {
+    const map = {
+      todos: 'Movimientos / documentos',
+      ventas: 'Ventas brutas',
+      devoluciones: 'Notas de crédito (DEV/FNC)',
+      credito: 'Ventas al crédito',
+      recibos: 'Recibos RCC/PRC',
+      efectivo: 'Efectivo',
+      tarjeta: 'Tarjeta',
+      deposito: 'Depósito',
+      cheque: 'Cheque',
+      'vales-caja': 'Vales de caja',
+      retiros: 'Retiros a banco',
+      anuladas: 'Anuladas',
+    };
+    return map[filtro] || 'Documentos del rubro';
+  },
+
+  rubroImporte(row, filtro) {
+    if (filtro === 'tarjeta') return Number(row.FPAGO_TARJETA) || 0;
+    if (filtro === 'deposito') return Number(row.FPAGO_DEPOSITO) || 0;
+    if (filtro === 'cheque') return Number(row.FPAGO_CHEQUE) || 0;
+    if (filtro === 'efectivo') return Number(row.FPAGO_EFECTIVO) || 0;
+    const n = Number(row.IMPORTE) || 0;
+    return filtro === 'devoluciones' ? Math.abs(n) : n;
+  },
+
+  renderResumenItem(label, value, filtro, extraClass = '') {
+    const cls = extraClass ? ` ${extraClass}` : '';
+    if (filtro) {
+      return `
+        <button type="button" class="audcaja-resumen-item audcaja-resumen-click${cls}"
+          data-audcaja-filtro="${this.escapeHtml(filtro)}" title="Ver documentos de este rubro">
+          <span class="audcaja-resumen-label">${this.escapeHtml(label)}</span>
+          <span class="audcaja-resumen-value">${this.escapeHtml(value)}</span>
+        </button>`;
+    }
+    return `
+      <div class="audcaja-resumen-item${cls}">
+        <span class="audcaja-resumen-label">${this.escapeHtml(label)}</span>
+        <span class="audcaja-resumen-value">${this.escapeHtml(value)}</span>
+      </div>`;
+  },
+
+  renderResumenHtml() {
+    const r = this._print?.resumen || {};
+    const reportado = this._print?.reportado || {};
+    const faltante = Number(this._print?.faltante) || 0;
+    const sobrante = Number(this._print?.sobrante) || 0;
+    const diffHtml =
+      faltante > 0
+        ? this.renderResumenItem('Faltante', this.formatMoney(faltante), '', 'text-danger')
+        : sobrante > 0
+          ? this.renderResumenItem('Sobrante', this.formatMoney(sobrante), '', 'text-success')
+          : this.renderResumenItem('Diferencia efectivo', 'Sin diferencia', '');
+
+    return `
+      <div class="audcaja-resumen-list">
+        ${this.renderResumenItem('Movimientos', String(r.totalMovimientos ?? 0), 'todos')}
+        ${this.renderResumenItem('Ventas brutas', this.formatMoney(r.totalVentasBrutas ?? r.totalVenta), 'ventas')}
+        ${this.renderResumenItem('Notas de crédito', this.formatMoney(r.totalDevoluciones || 0), 'devoluciones', 'text-danger')}
+        ${this.renderResumenItem('Total venta (neto)', this.formatMoney(r.totalVenta), 'todos')}
+        ${this.renderResumenItem('Crédito', this.formatMoney(r.totalCredito), 'credito')}
+        ${this.renderResumenItem('Recibos RCC/PRC', this.formatMoney(r.totalRecibos || 0), 'recibos', 'text-success')}
+        ${this.renderResumenItem('Vales de caja (−)', this.formatMoney(r.totalValesCaja || 0), 'vales-caja', 'text-danger')}
+        ${this.renderResumenItem('Retiros a banco (−)', this.formatMoney(r.totalRetiros || 0), 'retiros', 'text-danger')}
+        ${this.renderResumenItem('Efectivo esperado', this.formatMoney(r.efectivoEsperado), 'efectivo', 'text-primary')}
+        ${this.renderResumenItem('Efectivo (neto)', this.formatMoney(r.fpEfectivo), 'efectivo')}
+        ${this.renderResumenItem('Tarjeta', this.formatMoney(r.fpTarjeta), 'tarjeta')}
+        ${this.renderResumenItem('Depósito', this.formatMoney(r.fpDeposito), 'deposito')}
+        ${this.renderResumenItem('Cheque', this.formatMoney(r.fpCheque), 'cheque')}
+        <div class="audcaja-resumen-sep">Arqueo reportado</div>
+        ${this.renderResumenItem('Efectivo contado', this.formatMoney(reportado.efectivo), '')}
+        ${this.renderResumenItem('Tarjeta reportada', this.formatMoney(reportado.tarjeta), '')}
+        ${this.renderResumenItem('Cheques reportados', this.formatMoney(reportado.cheques), '')}
+        ${this.renderResumenItem('Depósito reportado', this.formatMoney(reportado.deposito), '')}
+        ${diffHtml}
+      </div>`;
+  },
+
+  renderRubroModalTable(filtro, rows) {
+    if (!rows.length) {
+      return '<p class="text-muted small mb-0 text-center py-3">Sin documentos en este rubro.</p>';
+    }
+    let total = 0;
+    const body = rows
+      .map((r) => {
+        const imp = this.rubroImporte(r, filtro);
+        total += imp;
+        const anulado = r.STATUS === 'A' ? ' audcaja-row-anulado' : '';
+        return `<tr class="${anulado}">
+          <td class="text-nowrap">${this.escapeHtml(this.formatFecha(r.FECHA))}</td>
+          <td>${this.escapeHtml(r.CODDOC || '—')}</td>
+          <td class="text-end">${this.escapeHtml(r.CORRELATIVO ?? '—')}</td>
+          <td>${this.escapeHtml(r.CLIENTE || '—')}</td>
+          <td class="text-end fw-semibold">${this.escapeHtml(this.formatMoney(imp))}</td>
+        </tr>`;
+      })
+      .join('');
+    return `
+      <div class="table-responsive audcaja-rubro-modal-table">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th>Fecha</th>
+              <th>Coddoc</th>
+              <th class="text-end">Corr.</th>
+              <th>Cliente</th>
+              <th class="text-end">Importe</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4" class="text-end fw-semibold">Total (${rows.length})</td>
+              <td class="text-end fw-semibold">${this.escapeHtml(this.formatMoney(total))}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
+  },
+
+  async showRubroModal(filtro) {
+    const rows = this.filterRowsByRubro(filtro);
+    await Swal.fire({
+      ...(typeof CatalogosUI !== 'undefined' ? CatalogosUI.modalBase() : {}),
+      title: this.rubroTitulo(filtro),
+      width: '48rem',
+      html: this.renderRubroModalTable(filtro, rows),
+      confirmButtonText:
+        typeof CatalogosUI !== 'undefined' ? CatalogosUI.guardarButtonHtml('Cerrar') : 'Cerrar',
+      showCancelButton: false,
+    });
+  },
+
   renderDetailHtml() {
     const c = this._corte || {};
     const tipodocOpts = this.tipodocOptionsHtml();
@@ -591,8 +781,22 @@ const AuditoriaCajasView = {
             </button>
           </div>
         </div>
-        <div class="audcaja-detail-scroll" id="audcaja-grupos">
-          ${this.detailContentHtml()}
+        <div class="row g-2 audcaja-detail-grid">
+          <div class="col-12 col-lg-4 d-flex">
+            <div class="card shadow-sm w-100 audcaja-resumen-card">
+              <div class="card-header py-2 fw-semibold">Resumen del corte</div>
+              <div class="card-body p-2" id="audcaja-resumen">
+                ${this.renderResumenHtml()}
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-8 d-flex">
+            <div class="card shadow-sm w-100 audcaja-docs-card">
+              <div class="card-body p-2 d-flex flex-column min-h-0" id="audcaja-grupos">
+                ${this.detailContentHtml()}
+              </div>
+            </div>
+          </div>
         </div>
       </div>`;
   },
@@ -674,6 +878,12 @@ const AuditoriaCajasView = {
       this.imprimirReporte().catch((err) =>
         F.toast(err.message || 'No se pudo imprimir el reporte', 'error')
       );
+    });
+    this._container.querySelector('#audcaja-resumen')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-audcaja-filtro]');
+      if (!btn) return;
+      const filtro = btn.getAttribute('data-audcaja-filtro');
+      if (filtro) this.showRubroModal(filtro);
     });
     this.bindDetailGrupoEvents();
   },

@@ -39,6 +39,12 @@ const MovimientosBancoView = {
     return n.toLocaleString('es-GT', { style: 'currency', currency: 'GTQ' });
   },
 
+  roundCentavos(n) {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return 0;
+    return Math.round((x + Number.EPSILON) * 100) / 100;
+  },
+
   formatFecha(value) {
     if (!value) return '—';
     const s = String(value).slice(0, 10);
@@ -842,13 +848,15 @@ const MovimientosBancoView = {
         if (!line) return;
         let val = Number(inp.value) || 0;
         const max = Number(line.DOC_SALDO) || 0;
-        if (val > max + 0.001) {
-          F.toast(`El abono no puede superar el saldo (${this.formatMoney(max)})`, 'warning');
-          val = max;
-          inp.value = String(max);
+        const maxC = this.roundCentavos(max);
+        const valC = this.roundCentavos(val);
+        if (valC > maxC) {
+          F.toast(`El abono no puede superar el saldo (${this.formatMoney(maxC)})`, 'warning');
+          val = maxC;
+          inp.value = String(maxC);
         }
         if (val < 0) val = 0;
-        line.ABONO = Math.round(val * 1000) / 1000;
+        line.ABONO = this.roundCentavos(val);
         this.syncImporteFromAbonos();
         this.refreshFormPartial();
       });

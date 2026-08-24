@@ -1,18 +1,25 @@
-.inventario-vista-wrap {
+.inventario-vista-wrap,
+.relleno-vista-wrap {
   width: 100%;
   max-width: 100%;
+  position: relative;
+  padding-bottom: 4.5rem;
 }
 
-.inventario-filters-card .card-body {
+.inventario-filters-card .card-body,
+.relleno-filters-card .card-body {
   padding: 0.85rem 1rem;
 }
 
-.inventario-filters-row {
+.inventario-filters-row,
+.relleno-filters-row {
   width: 100%;
 }
 
 .inventario-filter-marca,
-.inventario-filter-habilitado {
+.inventario-filter-habilitado,
+.relleno-filter-marca,
+.relleno-filter-habilitado {
   min-width: 10rem;
   max-width: 16rem;
 }
@@ -23,19 +30,25 @@
   max-width: 10rem;
 }
 
-.inventario-filter-habilitado {
+.inventario-filter-habilitado,
+.relleno-filter-habilitado {
   max-width: 9rem;
 }
 
-.inventario-filter-search {
+.inventario-filter-search,
+.relleno-filter-search {
   min-width: 12rem;
 }
 
-.inventario-filter-export {
+.inventario-filter-export,
+.relleno-filter-export,
+.relleno-filter-config {
   flex: 0 0 auto;
 }
 
-.inventario-export-label {
+.inventario-export-label,
+.relleno-export-label,
+.relleno-config-label {
   visibility: hidden;
   height: 0;
   margin: 0 !important;
@@ -44,7 +57,9 @@
 }
 
 @media (min-width: 576px) {
-  .inventario-export-label {
+  .inventario-export-label,
+  .relleno-export-label,
+  .relleno-config-label {
     visibility: visible;
     height: auto;
     margin-bottom: 0.25rem !important;
@@ -93,12 +108,8 @@
   outline-offset: -2px;
 }
 
-.inventario-vista-wrap {
-  position: relative;
-  padding-bottom: 4.5rem;
-}
-
-.inventario-fab-print:disabled {
+.inventario-fab-print:disabled,
+.relleno-fab-print:disabled {
   opacity: 0.65;
   cursor: not-allowed;
   transform: none;

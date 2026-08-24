@@ -1,6 +1,8 @@
-require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
+const { envFilePath } = require('./lib/app-paths');
+
+require('dotenv').config({ path: envFilePath() });
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -122,6 +124,7 @@ const inventarioSaldoRouter = require('./routes/inventario-saldo');
 const documentosRouter = require('./routes/documentos');
 const asistenteRouter = require('./routes/asistente');
 const documentosEliminadosRouter = require('./routes/documentos-eliminados');
+const promocionesRouter = require('./routes/promociones');
 const auditoriaCajasRouter = require('./routes/auditoria-cajas');
 const reportesVentasRouter = require('./routes/reportes-ventas');
 const autorizacionesRouter = require('./routes/autorizaciones');
@@ -174,9 +177,9 @@ app.locals.io = io;
 /** Licencia de instalación: limita APIs por módulo comprado. */
 app.use(licenseMiddleware);
 
-const publicDir = path.join(__dirname, 'public');
-const dataDir = path.join(__dirname, 'data');
-const fotosProductosDir = path.join(__dirname, 'Fotos_productos');
+const publicDir = require('./lib/app-paths').publicDir();
+const dataDir = require('./lib/app-paths').writableDataDir();
+const fotosProductosDir = require('./lib/app-paths').fotosProductosDir();
 const buildMetaPath = path.join(publicDir, 'build-meta.json');
 
 if (!fs.existsSync(fotosProductosDir)) {
@@ -286,6 +289,7 @@ app.use('/api/config', configRouter);
 app.use('/api/roles-usuarios', rolesUsuariosRouter);
 app.use('/api/pos', posRouter);
 app.use('/api/comandas-restaurante', comandasRestauranteRouter);
+app.use('/api/despachos-en-cocina', require('./routes/despachos-en-cocina'));
 app.use('/api/cotizaciones', cotizacionesRouter);
 app.use('/api/fraccionamiento-fac', fraccionamientoFacRouter);
 app.use('/api/formatos-impresion', formatosImpresionRouter);
@@ -304,6 +308,7 @@ app.use('/api/inventario', inventarioSaldoRouter);
 app.use('/api/documentos', documentosRouter);
 app.use('/api/asistente', asistenteRouter);
 app.use('/api/documentos-eliminados', documentosEliminadosRouter);
+app.use('/api/promociones', promocionesRouter);
 app.use('/api/auditoria-cajas', auditoriaCajasRouter);
 app.use('/api/reportes-ventas', reportesVentasRouter);
 app.use('/api/autorizaciones', autorizacionesRouter);
@@ -364,7 +369,8 @@ app.get('/api/health', async (_req, res) => {
 registerSocketHandlers(io);
 
 server.listen(PORT, () => {
-  const pidPath = path.join(__dirname, '.server.pid');
+  const { pidFilePath, getDataRoot: dataRootFn, isPackaged: packagedFn } = require('./lib/app-paths');
+  const pidPath = pidFilePath();
   try {
     fs.writeFileSync(pidPath, String(process.pid), 'utf8');
   } catch (err) {
@@ -380,7 +386,12 @@ server.listen(PORT, () => {
   process.once('exit', clearPid);
 
   console.log(`OnneB_pos en http://localhost:${PORT}`);
-  console.log('Detener: npm stop');
+  console.log(`Datos locales: ${dataRootFn()}`);
+  if (packagedFn()) {
+    console.log('Modo: ejecutable empaquetado (.env y Fotos_productos junto al .exe)');
+  } else {
+    console.log('Detener: npm stop');
+  }
   const appToken = getAppToken();
   if (appToken) {
     console.log(`[TOKEN] instalación: ${appToken}`);
@@ -395,7 +406,7 @@ server.listen(PORT, () => {
   } catch (err) {
     console.warn('[Licencia]', err.message);
   }
-  if (process.env.BUMP_WATCH !== 'false') {
+  if (!require('./lib/app-paths').isPackaged() && process.env.BUMP_WATCH !== 'false') {
     require('./scripts/watch-build').start();
     watchBuildMetaBroadcast();
   }
@@ -403,7 +414,7 @@ server.listen(PORT, () => {
 
 process.on('SIGINT', async () => {
   try {
-    const pidPath = path.join(__dirname, '.server.pid');
+    const pidPath = require('./lib/app-paths').pidFilePath();
     if (fs.existsSync(pidPath)) fs.unlinkSync(pidPath);
   } catch {
     /* ignore */

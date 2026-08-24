@@ -117,15 +117,12 @@ const NominaValesView = {
     }
     const body = this._rows
       .map((r) => {
-        const enCorte = String(r.CORTE || 'NO').trim().toUpperCase() === 'SI';
         const saldo = this.saldoVale(r);
         const pendiente = saldo > 0.005;
         const estadoBadge = pendiente
           ? '<span class="badge text-bg-success">Pendiente</span>'
           : '<span class="badge text-bg-secondary">Finalizado</span>';
-        const corteBadge = enCorte
-          ? ` <span class="badge text-bg-light text-muted border">Corte #${this.escapeHtml(r.NOCORTE || '')}</span>`
-          : '';
+        const cuotas = Math.max(1, parseInt(r.CUOTAS, 10) || 1);
         const tipoAcre = String(r.GENERADO_TIPO || '').trim().toUpperCase();
         const acreLabel = tipoAcre
           ? `${tipoAcre}${r.ACREDITACION_DESC ? ` · ${r.ACREDITACION_DESC}` : ''}`
@@ -143,10 +140,11 @@ const NominaValesView = {
         <td>${this.escapeHtml(r.NOMEMPLEADO || r.CODEMP)}</td>
         <td>${this.escapeHtml(acreLabel)}${docGen}</td>
         <td class="text-end">${this.escapeHtml(this.formatMoney(r.MONTO))}</td>
+        <td class="text-center">${this.escapeHtml(cuotas)}</td>
         <td class="text-end text-success">${this.escapeHtml(this.formatMoney(r.ABONOS))}</td>
         <td class="text-end fw-semibold text-primary">${this.escapeHtml(this.formatMoney(saldo))}</td>
         <td>${this.escapeHtml(r.DESCRIPCION || '—')}</td>
-        <td>${estadoBadge}${corteBadge}</td>
+        <td>${estadoBadge}</td>
         <td class="text-end text-nowrap">
           <button type="button" class="btn btn-sm btn-outline-secondary nomina-vale-print me-1" title="Imprimir vale">
             <i class="fa-solid fa-print"></i>
@@ -161,16 +159,12 @@ const NominaValesView = {
           <button type="button" class="btn btn-sm btn-outline-secondary nomina-vale-historial me-1" title="Historial de pagos">
             <i class="fa-solid fa-clock-rotate-left"></i>
           </button>
-          ${
-            enCorte
-              ? ''
-              : `<button type="button" class="btn btn-sm btn-outline-primary nomina-vale-edit me-1" title="Editar">
-                   <i class="fa-solid fa-pen"></i>
-                 </button>
-                 <button type="button" class="btn btn-sm btn-outline-danger nomina-vale-del" title="Eliminar">
-                   <i class="fa-solid fa-trash"></i>
-                 </button>`
-          }
+          <button type="button" class="btn btn-sm btn-outline-primary nomina-vale-edit me-1" title="Editar">
+            <i class="fa-solid fa-pen"></i>
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger nomina-vale-del" title="Eliminar">
+            <i class="fa-solid fa-trash"></i>
+          </button>
         </td>
       </tr>`;
       })
@@ -181,7 +175,7 @@ const NominaValesView = {
           <thead class="table-light">
             <tr>
               <th>ID</th><th>Fecha</th><th>Empleado</th><th>Acreditación</th>
-              <th class="text-end">Monto</th><th class="text-end">Abonos</th><th class="text-end">Saldo</th>
+              <th class="text-end">Monto</th><th class="text-center">Cuotas</th><th class="text-end">Abonos</th><th class="text-end">Saldo</th>
               <th>Descripción</th><th>Estado</th><th></th>
             </tr>
           </thead>
@@ -190,6 +184,7 @@ const NominaValesView = {
             <tr class="table-light fw-semibold">
               <td colspan="4" class="text-end">Total período</td>
               <td class="text-end">${this.escapeHtml(this.formatMoney(this.totalMes()))}</td>
+              <td></td>
               <td class="text-end text-success">${this.escapeHtml(this.formatMoney(this.totalAbonos()))}</td>
               <td class="text-end text-primary">${this.escapeHtml(this.formatMoney(this.totalSaldo()))}</td>
               <td colspan="3"></td>
@@ -205,7 +200,7 @@ const NominaValesView = {
         <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
           <div>
             <h5 class="mb-0">Vales a empleados</h5>
-            <p class="small text-muted mb-0">Al crear un vale se genera un documento de caja (VC) o una salida bancaria, según la forma de acreditación.</p>
+            <p class="small text-muted mb-0">Al crear un vale se genera un documento de caja (VC) o una salida bancaria. No se carga al corte de caja.</p>
           </div>
         </div>
         <div class="card shadow-sm mb-3">
@@ -298,6 +293,28 @@ const NominaValesView = {
       .join('');
   },
 
+  cuotasOptionsHtml(selected) {
+    const sel = Math.max(1, Math.min(48, parseInt(selected, 10) || 1));
+    const opts = [];
+    for (let i = 1; i <= 48; i += 1) {
+      opts.push(`<option value="${i}"${i === sel ? ' selected' : ''}>${i}</option>`);
+    }
+    return opts.join('');
+  },
+
+  refreshCuotaPreview() {
+    const monto = Number(document.getElementById('nv-monto')?.value);
+    const cuotas = Math.max(1, parseInt(document.getElementById('nv-cuotas')?.value, 10) || 1);
+    const el = document.getElementById('nv-cuota-monto');
+    if (!el) return;
+    if (!Number.isFinite(monto) || monto <= 0) {
+      el.textContent = 'Indique el monto para ver el valor por cuota (referencia).';
+      return;
+    }
+    const porCuota = Math.round((monto / cuotas) * 100) / 100;
+    el.textContent = `${this.formatMoney(porCuota)} por cuota (referencia; no se almacena).`;
+  },
+
   fillAcreditacionDestino(tipo, selectedCodigo = '') {
     const dest = document.getElementById('nv-acre-codigo');
     const wrap = document.getElementById('nv-acre-codigo-wrap');
@@ -359,6 +376,7 @@ const NominaValesView = {
     const fechaVal = editing ? this.fechaInputValue(row.FECHA) : this.todayIso();
     const montoVal = editing && row.MONTO != null ? String(Number(row.MONTO)) : '';
     const descVal = editing ? String(row.DESCRIPCION || '') : '';
+    const cuotasVal = editing ? Math.max(1, parseInt(row.CUOTAS, 10) || 1) : 1;
     const tipoAcre = editing ? String(row.GENERADO_TIPO || '').trim().toUpperCase() : '';
     const acreInfo =
       editing && tipoAcre
@@ -428,6 +446,15 @@ const NominaValesView = {
               </div>
             </div>
           </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label small mb-0" for="nv-cuotas">Cuotas <span class="text-danger">*</span></label>
+              <select id="nv-cuotas" class="form-select form-select-sm">${this.cuotasOptionsHtml(cuotasVal)}</select>
+            </div>
+            <div class="col-6 d-flex align-items-end">
+              <p class="small text-muted mb-1" id="nv-cuota-monto"></p>
+            </div>
+          </div>
           <div class="mb-0">
             <label class="form-label small mb-0" for="nv-desc">Descripción</label>
             <input type="text" id="nv-desc" class="form-control form-control-sm" maxlength="250" placeholder="Opcional" value="${this.escapeHtml(descVal)}">
@@ -441,6 +468,9 @@ const NominaValesView = {
       focusConfirm: false,
       didOpen: () => {
         document.getElementById('nv-empleado')?.focus();
+        this.refreshCuotaPreview();
+        document.getElementById('nv-monto')?.addEventListener('input', () => this.refreshCuotaPreview());
+        document.getElementById('nv-cuotas')?.addEventListener('change', () => this.refreshCuotaPreview());
         if (!editing) {
           const tipoEl = document.getElementById('nv-acre-tipo');
           tipoEl?.addEventListener('change', () => {
@@ -452,6 +482,7 @@ const NominaValesView = {
         const CODEMP = document.getElementById('nv-empleado')?.value?.trim();
         const FECHA = document.getElementById('nv-fecha')?.value?.trim();
         const MONTO = Number(document.getElementById('nv-monto')?.value);
+        const CUOTAS = parseInt(document.getElementById('nv-cuotas')?.value, 10);
         const DESCRIPCION = document.getElementById('nv-desc')?.value?.trim() || '';
         if (!CODEMP) {
           Swal.showValidationMessage('Seleccione un empleado');
@@ -461,12 +492,16 @@ const NominaValesView = {
           Swal.showValidationMessage('Ingrese un monto válido');
           return false;
         }
+        if (!Number.isFinite(CUOTAS) || CUOTAS < 1 || CUOTAS > 48) {
+          Swal.showValidationMessage('Seleccione de 1 a 48 cuotas');
+          return false;
+        }
         if (!FECHA) {
           Swal.showValidationMessage('Ingrese la fecha');
           return false;
         }
         if (editing) {
-          return { CODEMP, FECHA, MONTO, DESCRIPCION, USUARIO: this.usuario() };
+          return { CODEMP, FECHA, MONTO, CUOTAS, DESCRIPCION, USUARIO: this.usuario() };
         }
         const GENERADO_TIPO = document.getElementById('nv-acre-tipo')?.value?.trim().toUpperCase();
         const GENERADO_CODIGO = document.getElementById('nv-acre-codigo')?.value?.trim();
@@ -484,6 +519,7 @@ const NominaValesView = {
           CODEMP,
           FECHA,
           MONTO,
+          CUOTAS,
           DESCRIPCION,
           USUARIO: this.usuario(),
           GENERADO_TIPO,
@@ -652,24 +688,18 @@ const NominaValesView = {
     }
     const body = pagos
       .map((p) => {
-        const enCorte = String(p.CORTE || 'NO').trim().toUpperCase() === 'SI';
         return `
       <tr data-pago-id="${this.escapeHtml(p.ID)}">
         <td>${this.escapeHtml(p.ID)}</td>
         <td>${this.formatFecha(p.FECHA)}</td>
         <td class="text-end">${this.escapeHtml(this.formatMoney(p.MONTO))}</td>
-        <td>${enCorte ? `<span class="badge text-bg-secondary">Corte #${this.escapeHtml(p.NOCORTE || '')}</span>` : '<span class="badge text-bg-success">Pendiente</span>'}</td>
         <td class="text-end text-nowrap">
           <button type="button" class="btn btn-sm btn-outline-secondary nomina-vale-pago-print me-1" title="Imprimir abono">
             <i class="fa-solid fa-print"></i>
           </button>
-          ${
-            enCorte
-              ? ''
-              : `<button type="button" class="btn btn-sm btn-outline-danger nomina-vale-pago-del" title="Eliminar pago">
-                   <i class="fa-solid fa-trash"></i>
-                 </button>`
-          }
+          <button type="button" class="btn btn-sm btn-outline-danger nomina-vale-pago-del" title="Eliminar pago">
+            <i class="fa-solid fa-trash"></i>
+          </button>
         </td>
       </tr>`;
       })
@@ -679,7 +709,7 @@ const NominaValesView = {
         <table class="table table-sm table-hover align-middle mb-0">
           <thead class="table-light sticky-top">
             <tr>
-              <th>ID</th><th>Fecha</th><th class="text-end">Importe</th><th>Estado</th><th></th>
+              <th>ID</th><th>Fecha</th><th class="text-end">Importe</th><th></th>
             </tr>
           </thead>
           <tbody>${body}</tbody>

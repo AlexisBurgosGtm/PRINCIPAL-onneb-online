@@ -233,6 +233,48 @@ const ComandasRestauranteView = {
     return String(this._config?.permiteCambiarPrecio || 'NO').trim().toUpperCase() === 'SI';
   },
 
+  async enviarACocina() {
+    const key = this.docKey();
+    if (!key) return;
+    const h = this._pedido?.header;
+    if (!this.docEditable(h)) {
+      F.toast('La comanda no está operada', 'warning');
+      return;
+    }
+    const lines = this._pedido?.lines || [];
+    if (!lines.length) {
+      F.toast('Agregue productos antes de enviar a cocina', 'warning');
+      return;
+    }
+    const pendientes = lines.filter((l) => Number(l.SOLICITADO) === 0);
+    if (!pendientes.length) {
+      F.toast('Todos los productos ya fueron enviados a cocina', 'info');
+      return;
+    }
+    const ok = await CatalogosUI.fireConfirm({
+      title: '¿Enviar a cocina?',
+      html: `<p class="mb-0">Se enviarán <strong>${pendientes.length}</strong> producto(s) pendientes a cocina.</p>`,
+      icon: 'question',
+      confirmText: 'Sí, enviar',
+      confirmClass: 'btn-catalogo-guardar',
+    });
+    if (!ok) return;
+    const url = `/api/comandas-restaurante/pedidos/${encodeURIComponent(key.coddoc)}/${key.correlativo}/enviar-cocina?empnit=${encodeURIComponent(F.getEmpNit())}`;
+    try {
+      this.setCartBusy(true);
+      const res = await F.fetchJson(url, { method: 'POST' });
+      this._pedido = res.pedido || this._pedido;
+      this.renderCart();
+      this.renderOrderSummary();
+      const n = Number(res.updated) || 0;
+      F.toast(n ? `${n} producto(s) enviados a cocina` : res.message || 'Sin cambios', 'success');
+    } catch (err) {
+      F.toast(err.message || 'No se pudo enviar a cocina', 'error');
+    } finally {
+      this.setCartBusy(false);
+    }
+  },
+
   async finalizarPedido() {
     const key = this.docKey();
     if (!key) return;
@@ -371,6 +413,8 @@ const ComandasRestauranteView = {
     tbody?.classList.toggle('pos-cart-busy', busy);
     const fab = this._container?.querySelector('#btn-pos-finalizar');
     if (fab) fab.disabled = busy;
+    const enviarFab = this._container?.querySelector('#btn-pos-enviar-cocina');
+    if (enviarFab) enviarFab.disabled = busy;
     const barcodeFab = this._container?.querySelector('#pos-fab-barcode');
     if (barcodeFab) barcodeFab.disabled = busy;
   },
@@ -573,6 +617,13 @@ const ComandasRestauranteView = {
         const unitPrice = this.formatMoney(ln.PRECIO);
         const lineObsRaw = String(ln.OBS || '').trim();
         const lineObs = lineObsRaw && lineObsRaw.toUpperCase() !== 'SN' ? lineObsRaw : '';
+        const solicitado = Number(ln.SOLICITADO);
+        const solBadge =
+          solicitado === 2
+            ? '<span class="badge text-bg-primary ms-1" title="Despachado">Despachado</span>'
+            : solicitado === 1
+              ? '<span class="badge text-bg-success ms-1" title="Enviado a cocina">Cocina</span>'
+              : '<span class="badge text-bg-secondary ms-1" title="Pendiente de enviar">Pendiente</span>';
         const qtyControlsInner = editable
           ? `<button type="button" class="btn btn-outline-secondary btn-sm pos-qty-btn" data-action="qty-minus" data-id="${lineId}"${this._cartBusy ? ' disabled' : ''}>−</button>
               <span class="px-1">${qty}</span>
@@ -587,7 +638,7 @@ const ComandasRestauranteView = {
           : '';
         return `<tr>
           <td class="small">${this.escapeHtml(ln.CODPROD)}</td>
-          <td class="small">${this.escapeHtml(ln.DESPROD)}${lineObs ? `<br><span class="text-muted fst-italic">${this.escapeHtml(lineObs)}</span>` : ''}<br><span class="text-muted">${this.escapeHtml(ln.CODMEDIDA)}</span></td>
+          <td class="small">${this.escapeHtml(ln.DESPROD)}${solBadge}${lineObs ? `<br><span class="text-muted fst-italic">${this.escapeHtml(lineObs)}</span>` : ''}<br><span class="text-muted">${this.escapeHtml(ln.CODMEDIDA)}</span></td>
           <td class="text-end small pos-cart-exist">${this.escapeHtml(this.formatQty(ln.EXISTENCIA))}</td>
           <td class="text-center">${qtyCell}</td>
           <td class="text-end">${this.escapeHtml(this.formatMoney(ln.TOTALPRECIO))}</td>
@@ -679,6 +730,8 @@ const ComandasRestauranteView = {
     });
     const fab = this._container?.querySelector('#btn-pos-finalizar');
     if (fab) fab.style.display = editable ? '' : 'none';
+    const enviarFab = this._container?.querySelector('#btn-pos-enviar-cocina');
+    if (enviarFab) enviarFab.style.display = editable ? '' : 'none';
     this.syncClienteSearchEmphasis();
     this.syncVendedorEmphasis();
   },
@@ -929,7 +982,18 @@ const ComandasRestauranteView = {
             </div>
           </div>
         </div>
-        ${editable ? PosDocSearchUI.fabBarHtml('pos') : ''}
+        ${editable ? `
+        ${PosDocSearchUI.barcodeFabHtml('pos')}
+        <button type="button" class="pos-fab-enviar-cocina" id="btn-pos-enviar-cocina"
+          aria-label="Enviar a cocina" title="Enviar a cocina">
+          <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+        </button>
+        <div class="pos-fab-bar" id="pos-fab-bar">
+          ${PosDocSearchUI.mobileFabHtml('pos')}
+          <button type="button" class="pos-fab-finalizar" id="btn-pos-finalizar">
+            <i class="fa-solid fa-check me-2"></i>Finalizar
+          </button>
+        </div>` : ''}
         ${PosDocSearchUI.productModalHtml('pos')}
       </div>`;
   },
@@ -1060,6 +1124,7 @@ const ComandasRestauranteView = {
     PosDocSearchUI.bind(this, 'pos', {
       getEditable: () => true,
       allowEmptySearch: true,
+      keepProductSearchAfterAdd: true,
       buscarProductos: this.buscarProductos,
       onProductPick: (row) => this.onProductClick(row),
     });
@@ -1120,6 +1185,9 @@ const ComandasRestauranteView = {
     this._container?.querySelector('#btn-pos-atras')?.addEventListener('click', () => this.showMesas());
     this._container?.querySelector('#btn-pos-finalizar')?.addEventListener('click', () => {
       this.finalizarPedido().catch((err) => F.toast(err.message, 'error'));
+    });
+    this._container?.querySelector('#btn-pos-enviar-cocina')?.addEventListener('click', () => {
+      this.enviarACocina().catch((err) => F.toast(err.message, 'error'));
     });
 
     const fechaInp = this._container?.querySelector('#pos-doc-fecha');

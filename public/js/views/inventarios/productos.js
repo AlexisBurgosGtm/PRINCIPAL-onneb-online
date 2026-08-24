@@ -624,7 +624,7 @@ const ProductosView = {
         ${this.formFieldColFull(this.selectField('CODMARCA', 'Marca', L.marcas, r.CODMARCA))}
         ${this.formFieldColFull(this.selectField('CODCLADOS', 'Proveedor', L.proveedores, r.CODCLADOS))}
         ${this.formFieldColFull(this.selectField('CODCLAUNO', 'Fabricante', L.fabricantes, r.CODCLAUNO))}
-        ${this.formFieldColFull(this.selectField('CODCLATRES', 'Clase tres', L.ubicaciones, r.CODCLATRES))}
+        ${this.formFieldColFull(this.selectField('CODCLATRES', 'Ubicación', L.ubicaciones, r.CODCLATRES))}
       </div>
     `;
 
@@ -1105,6 +1105,7 @@ const ProductosView = {
           ${this.opcionPickBtn('movimientos-fiscales', 'fa-solid fa-file-invoice', 'Movimientos Fiscales')}
           ${this.opcionPickBtn('ventas', 'fa-solid fa-cart-shopping', 'Ventas')}
           ${this.opcionPickBtn('compras', 'fa-solid fa-truck', 'Compras')}
+          ${this.opcionPickBtn('copiar', 'fa-solid fa-copy', 'Copiar Producto')}
         </div>`,
       showCancelButton: true,
       cancelButtonText: CatalogosUI.cancelButtonHtml('Cerrar'),
@@ -1118,10 +1119,70 @@ const ProductosView = {
             else if (opcion === 'movimientos-fiscales') await this.showReporteMovimientos(codprod, { fiscal: true });
             else if (opcion === 'ventas') await this.showReporteVentas(codprod);
             else if (opcion === 'compras') await this.showReporteCompras(codprod);
+            else if (opcion === 'copiar') await this.onCopiarProducto(codprod);
           });
         });
       },
     });
+  },
+
+  async onCopiarProducto(codprod) {
+    const label = this.productoLabel(codprod);
+    const ok = await CatalogosUI.fireConfirm({
+      title: '¿Copiar producto?',
+      html: `<p class="mb-0">¿Desea crear otro producto con las mismas características de <strong>${this.escapeHtml(label)}</strong>?</p>
+        <p class="small text-muted mt-2 mb-0">Se copiarán los datos excepto el código, el código alterno y los precios.</p>`,
+      icon: 'question',
+      confirmText: 'Sí, copiar',
+      confirmClass: 'btn-catalogo-guardar',
+    });
+    if (!ok) return;
+    await this.showFormCopyFrom(codprod);
+  },
+
+  /**
+   * Abre el formulario de nuevo producto con datos del origen (sin códigos ni precios).
+   */
+  async showFormCopyFrom(sourceCodprod) {
+    this._screen = 'form';
+    await this.loadLookups();
+    this._formMode = 'new';
+    this._formCodprod = null;
+    this._selectedCodprod = null;
+    this._pendingFotoFile = null;
+    this._fotoUrl = null;
+    this._precios = [];
+
+    let row = this.findRow(sourceCodprod);
+    try {
+      row = (await this.fetchProductDetail(sourceCodprod)) || row;
+    } catch (err) {
+      F.alert('Error', err.message || 'No se pudo cargar el producto a copiar', 'error');
+      return;
+    }
+    if (!row) {
+      F.alert('Error', 'Producto no encontrado', 'error');
+      return;
+    }
+
+    this._formRow = {
+      ...row,
+      CODPROD: '',
+      CODPROD2: null,
+    };
+
+    if (!this._container) return;
+    await this.setScreen(this.buildProductFormPageHtml(this._formRow, false), true);
+    this.bindFormEvents();
+    const codInput = this._container?.querySelector('#productos-form [name="CODPROD"]');
+    if (codInput) {
+      codInput.focus();
+      try {
+        codInput.select();
+      } catch (_) {
+        /* ignore */
+      }
+    }
   },
 
   reporteModalBase(title, html) {

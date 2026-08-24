@@ -2,9 +2,11 @@ const express = require('express');
 const sql = require('mssql');
 const { isDbConfigured } = require('../config/database');
 const { STATUS_OPERADO } = require('../lib/documento-status');
+const { fechaIsoFromValue } = require('../lib/documento-fecha');
 const {
   SQL_TIPODOC_CUENTAS_PAGAR_IN,
   SQL_DOC_SALDO_PENDIENTE,
+  SQL_DOC_SALDO_PENDIENTE_POSITIVO,
 } = require('../lib/cuentas-pagar-docs');
 const {
   parseCorrelativo,
@@ -16,11 +18,19 @@ const {
   corregirSaldosCxp,
 } = require('../lib/cuentas-pago');
 const { fetchEstadoCuentaProveedor } = require('../lib/cuentas-estado-proveedor');
-const { fetchConsolidadoProductos } = require('../lib/cuentas-consolidado-productos');
+const { fetchConsolidadoProductos, fetchConsolidadoProductoDocumentos } = require('../lib/cuentas-consolidado-productos');
+const {
+  fetchResumenPartes,
+  partyFilterSql,
+  bindPartyFilter,
+  SQL_NOMBRE_PROVEEDOR,
+  SQL_JOIN_PROVEEDORES,
+} = require('../lib/cuentas-resumen-partes');
 
 const router = express.Router();
 const DEFAULT_LIMIT = 500;
 const SEARCH_LIMIT = 500;
+const PARTY_DOC_LIMIT = 10000;
 
 function getEmpNitFromReq(req) {
   return String(req.query.empnit || req.headers['x-emp-nit'] || '').trim();
@@ -79,10 +89,16 @@ router.get('/documentos', async (req, res) => {
 
   const q = String(req.query.q || '').trim();
   const qLike = q ? `%${q}%` : null;
+  const hasParty = req.query.codprov !== undefined && String(req.query.codprov) !== '';
+  const partyFilter = hasParty
+    ? partyFilterSql(req.query.codprov, req.query.nit, req.query.nombre)
+    : null;
   let limit = DEFAULT_LIMIT;
   const requested = parseInt(req.query.limit, 10);
   if (!Number.isNaN(requested)) {
-    limit = Math.min(Math.max(requested, 1), SEARCH_LIMIT);
+    limit = Math.min(Math.max(requested, 1), hasParty ? PARTY_DOC_LIMIT : SEARCH_LIMIT);
+  } else if (hasParty) {
+    limit = PARTY_DOC_LIMIT;
   }
 
   try {
@@ -97,12 +113,14 @@ router.get('/documentos', async (req, res) => {
       FROM dbo.Empleados e
       WHERE e.EMPNIT = d.EMPNIT AND e.CODEMPLEADO = d.CODVEN
     ), '')`;
+    const partyWhere = partyFilter ? partyFilter.sql : '';
     const baseWhere = `
       WHERE d.EMPNIT = @EMPNIT
         AND t.TIPODOC IN (${SQL_TIPODOC_CUENTAS_PAGAR_IN})
         AND d.STATUS = '${STATUS_OPERADO}'
         AND ISNULL(d.CONCRE, 'CON') = 'CRE'
-        AND (ISNULL(d.DOC_SALDO, 0) > 0 OR ${SQL_DOC_SALDO_PENDIENTE} > 0)
+        AND ${SQL_DOC_SALDO_PENDIENTE_POSITIVO}
+        ${partyWhere}
         AND (
           @q IS NULL OR @q = ''
           OR CAST(d.CORRELATIVO AS VARCHAR(30)) LIKE @qLike
@@ -117,11 +135,14 @@ router.get('/documentos', async (req, res) => {
         )
     `;
 
-    const bind = (request) =>
+    const bind = (request) => {
       request
         .input('EMPNIT', sql.VarChar, empnit)
         .input('q', sql.NVarChar, q || null)
         .input('qLike', sql.NVarChar, qLike);
+      if (partyFilter) bindPartyFilter(request, sql, partyFilter);
+      return request;
+    };
 
     const totalsRes = await bind(pool.request()).query(`
       SELECT
@@ -191,6 +212,27 @@ router.get('/documentos', async (req, res) => {
   }
 });
 
+router.get('/resumen-proveedores', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });
+  const empnit = requireEmpNit(req, res);
+  if (!empnit) return;
+  try {
+    const pool = await req.app.locals.getDbPool();
+    const data = await fetchResumenPartes(pool, sql, empnit, {
+      tipodocSqlIn: SQL_TIPODOC_CUENTAS_PAGAR_IN,
+      saldoWhereSql: SQL_DOC_SALDO_PENDIENTE_POSITIVO,
+      partyJoinSql: SQL_JOIN_PROVEEDORES,
+      partyNameSql: SQL_NOMBRE_PROVEEDOR,
+      q: req.query.q,
+    });
+    res.json({ ...data, empnit });
+  } catch (err) {
+    console.warn('[API GET /cuentas-pagar/resumen-proveedores]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/consolidado-productos', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });
@@ -200,11 +242,37 @@ router.get('/consolidado-productos', async (req, res) => {
     const pool = await req.app.locals.getDbPool();
     const data = await fetchConsolidadoProductos(pool, sql, empnit, {
       tipodocSqlIn: SQL_TIPODOC_CUENTAS_PAGAR_IN,
-      saldoWhereSql: `(ISNULL(d.DOC_SALDO, 0) > 0 OR ${SQL_DOC_SALDO_PENDIENTE} > 0)`,
+      saldoWhereSql: SQL_DOC_SALDO_PENDIENTE_POSITIVO,
     });
     res.json({ ...data, empnit });
   } catch (err) {
     console.warn('[API GET /cuentas-pagar/consolidado-productos]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/consolidado-productos/detalle', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });
+  const empnit = requireEmpNit(req, res);
+  if (!empnit) return;
+  try {
+    const pool = await req.app.locals.getDbPool();
+    const data = await fetchConsolidadoProductoDocumentos(pool, sql, empnit, req.query.codprod, {
+      tipodocSqlIn: SQL_TIPODOC_CUENTAS_PAGAR_IN,
+      saldoWhereSql: SQL_DOC_SALDO_PENDIENTE_POSITIVO,
+    });
+    res.json({
+      ...data,
+      rows: data.rows.map((r) => ({
+        ...r,
+        FECHA: fechaIsoFromValue(r.FECHA) || null,
+        VENCIMIENTO: fechaIsoFromValue(r.VENCIMIENTO) || null,
+      })),
+      empnit,
+    });
+  } catch (err) {
+    console.warn('[API GET /cuentas-pagar/consolidado-productos/detalle]', err.message);
     res.status(500).json({ error: err.message });
   }
 });

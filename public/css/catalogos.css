@@ -434,6 +434,12 @@ body.modal-open .modal-backdrop {
   white-space: nowrap;
 }
 
+.promo-status-badge {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .catalogo-vista-wrap {
   padding-bottom: 5rem;
 }

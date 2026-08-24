@@ -121,6 +121,27 @@
   filter: drop-shadow(0 10px 24px color-mix(in srgb, var(--login-glow) 35%, transparent));
 }
 
+.logo-app--interactive {
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.logo-app--interactive:focus-visible {
+  filter: drop-shadow(0 10px 24px color-mix(in srgb, var(--login-glow) 35%, transparent))
+    drop-shadow(0 0 0 2px color-mix(in srgb, var(--login-glow) 70%, #fff));
+}
+
+.logo-app--flying {
+  animation: none !important;
+  pointer-events: none;
+}
+
+.login-logo-placeholder {
+  flex-shrink: 0;
+}
+
 .login-form {
   display: flex;
   flex-direction: column;
@@ -362,5 +383,9 @@ select.login-input-line {
   .login-glass-card,
   .btn-login::after {
     animation: none !important;
+  }
+
+  .logo-app--interactive {
+    cursor: default;
   }
 }

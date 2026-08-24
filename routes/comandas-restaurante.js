@@ -39,6 +39,22 @@ const TIPODOC_COMANDA = 'CRS';
 const DEFAULT_BODEGA = 0;
 const CODTIPO_EMPLEADO_VENDEDOR = 3;
 
+/** Cache: columna DOCPRODUCTOS.SOLICITADO (updater). null = aún no comprobado. */
+let _hasSolicitadoCol = null;
+
+async function hasDocproductosSolicitado(pool) {
+  if (_hasSolicitadoCol !== null) return _hasSolicitadoCol;
+  try {
+    const r = await pool.request().query(`
+      SELECT CASE WHEN COL_LENGTH('dbo.DOCPRODUCTOS', 'SOLICITADO') IS NULL THEN 0 ELSE 1 END AS HAS_COL
+    `);
+    _hasSolicitadoCol = Number(r.recordset[0]?.HAS_COL) === 1;
+  } catch {
+    _hasSolicitadoCol = false;
+  }
+  return _hasSolicitadoCol;
+}
+
 function getEmpNitFromReq(req) {
   return String(req.query.empnit || req.headers['x-emp-nit'] || '').trim();
 }
@@ -140,6 +156,30 @@ async function getClienteSnapshot(pool, empnit, codcliente) {
   return r.recordset[0] || null;
 }
 
+/** Primer cliente habilitado de la empresa (no asume CODCLIENTE = 1). */
+async function getClienteDefault(pool, empnit) {
+  const habilitado = await pool
+    .request()
+    .input('EMPNIT', sql.VarChar, empnit)
+    .query(`
+      SELECT TOP 1 CODCLIENTE, NIT, NOMBRECLIENTE, DIRCLIENTE, NEGOCIO, TIPONEGOCIO
+      FROM dbo.CLIENTES
+      WHERE EMPNIT = @EMPNIT AND HABILITADO = 'SI'
+      ORDER BY CODCLIENTE
+    `);
+  if (habilitado.recordset[0]) return habilitado.recordset[0];
+  const any = await pool
+    .request()
+    .input('EMPNIT', sql.VarChar, empnit)
+    .query(`
+      SELECT TOP 1 CODCLIENTE, NIT, NOMBRECLIENTE, DIRCLIENTE, NEGOCIO, TIPONEGOCIO
+      FROM dbo.CLIENTES
+      WHERE EMPNIT = @EMPNIT
+      ORDER BY CODCLIENTE
+    `);
+  return any.recordset[0] || null;
+}
+
 async function recalcDocumentTotals(transaction, empnit, coddoc, correlativo) {
   const sums = await transaction
     .request()
@@ -200,6 +240,8 @@ async function loadPedido(pool, empnit, coddoc, correlativo) {
       WHERE d.EMPNIT = @EMPNIT AND d.CODDOC = @CODDOC AND d.CORRELATIVO = @CORRELATIVO
     `);
   if (!headerRes.recordset.length) return null;
+  const withSol = await hasDocproductosSolicitado(pool);
+  const solSelect = withSol ? 'ISNULL(l.SOLICITADO, 0) AS SOLICITADO,' : '0 AS SOLICITADO,';
   const linesRes = await pool
     .request()
     .input('EMPNIT', sql.VarChar, empnit)
@@ -208,6 +250,7 @@ async function loadPedido(pool, empnit, coddoc, correlativo) {
     .query(`
       SELECT l.Id AS ID, l.CODPROD, l.DESPROD, l.CODMEDIDA, l.CANTIDAD, l.EQUIVALE, l.PRECIO, l.COSTO,
         l.TOTALPRECIO, l.TOTALCOSTO, l.TOTALUNIDADES, l.TIPOPRECIO, l.OBS,
+        ${solSelect}
         ${sqlExistenciaMedidaExpr('l.EQUIVALE')}
       FROM dbo.DOCPRODUCTOS l
       ${SQL_INVSALDO_UNICO_JOIN_LINEA}
@@ -443,7 +486,7 @@ router.post('/pedidos', async (req, res) => {
       cliente = await getClienteSnapshot(pool, empnit, codcliente);
     }
     if (!cliente) {
-      cliente = await getClienteSnapshot(pool, empnit, 1);
+      cliente = await getClienteDefault(pool, empnit);
     }
     if (!cliente) {
       return res.status(400).json({ error: 'No hay cliente disponible para el pedido' });
@@ -721,7 +764,8 @@ router.post('/pedidos/:coddoc/:correlativo/lineas', async (req, res) => {
     await transaction.begin();
     try {
       const tipom = await getTipomDocumento(transaction, empnit, coddoc);
-      const ins = await transaction
+      const withSol = await hasDocproductosSolicitado(pool);
+      const reqIns = transaction
         .request()
         .input('EMPNIT', sql.VarChar, empnit)
         .input('ANIO', sql.Int, parts.anio)
@@ -745,8 +789,31 @@ router.post('/pedidos/:coddoc/:correlativo/lineas', async (req, res) => {
         .input('PESO', sql.Decimal(18, 3), peso)
         .input('TOTALPESO', sql.Decimal(18, 3), totalPeso)
         .input('TIPOM', sql.Int, tipom)
-        .input('OBS', sql.VarChar, String(req.body?.OBS || '').trim() || 'SN')
-        .query(`
+        .input('OBS', sql.VarChar, String(req.body?.OBS || '').trim() || 'SN');
+      if (withSol) reqIns.input('SOLICITADO', sql.Int, 0);
+      const ins = await reqIns.query(
+        withSol
+          ? `
+          INSERT INTO dbo.DOCPRODUCTOS (
+            EMPNIT, ANIO, MES, DIA, CODDOC, CORRELATIVO, CODPROD, DESPROD, CODMEDIDA,
+            CANTIDAD, CANTIDADBONIF, EQUIVALE, TOTALUNIDADES, TOTALBONIF,
+            COSTO, PRECIO, TOTALCOSTO, TOTALPRECIO,
+            ENTREGADOS_TOTALUNIDADES, ENTREGADOS_TOTALCOSTO, ENTREGADOS_TOTALPRECIO,
+            COSTOANTERIOR, COSTOPROMEDIO, CODBODEGAENTRADA, CODBODEGASALIDA,
+            DESCUENTO, PORCDESCUENTO, NOSERIE, EXENTO, OBS,
+            TIPOPROD, TIPOPRECIO, PESO, TOTALPESO, TIPOM, LASTUPDATE, SOLICITADO
+          ) VALUES (
+            @EMPNIT, @ANIO, @MES, @DIA, @CODDOC, @CORRELATIVO, @CODPROD, @DESPROD, @CODMEDIDA,
+            @CANTIDAD, 0, @EQUIVALE, @TOTALUNIDADES, 0,
+            @COSTO, @PRECIO, @TOTALCOSTO, @TOTALPRECIO,
+            @TOTALUNIDADES, @TOTALCOSTO, @TOTALPRECIO,
+            0, 0, ${DEFAULT_BODEGA}, ${DEFAULT_BODEGA},
+            0, 0, 'SN', @EXENTO, @OBS,
+            @TIPOPROD, @TIPOPRECIO, @PESO, @TOTALPESO, @TIPOM, CAST(GETDATE() AS DATE), @SOLICITADO
+          );
+          SELECT SCOPE_IDENTITY() AS ID;
+        `
+          : `
           INSERT INTO dbo.DOCPRODUCTOS (
             EMPNIT, ANIO, MES, DIA, CODDOC, CORRELATIVO, CODPROD, DESPROD, CODMEDIDA,
             CANTIDAD, CANTIDADBONIF, EQUIVALE, TOTALUNIDADES, TOTALBONIF,
@@ -765,7 +832,8 @@ router.post('/pedidos/:coddoc/:correlativo/lineas', async (req, res) => {
             @TIPOPROD, @TIPOPRECIO, @PESO, @TOTALPESO, @TIPOM, CAST(GETDATE() AS DATE)
           );
           SELECT SCOPE_IDENTITY() AS ID;
-        `);
+        `
+      );
       const lineId = ins.recordset[0]?.ID;
       await aplicarMovimientoInventarioLineaInsert(transaction, {
         empnit,
@@ -1100,6 +1168,77 @@ router.post('/pedidos/:coddoc/:correlativo/finalizar', async (req, res) => {
   }
 });
 
+router.post('/pedidos/:coddoc/:correlativo/enviar-cocina', async (req, res) => {
+  if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });
+  const empnit = requireEmpNit(req, res);
+  if (!empnit) return;
+  const coddoc = String(req.params.coddoc || '').trim();
+  const correlativo = parseCorrelativo(req.params.correlativo);
+  if (!coddoc || correlativo === null) return res.status(400).json({ error: 'Documento inválido' });
+
+  try {
+    const pool = await req.app.locals.getDbPool();
+    if (!(await hasDocproductosSolicitado(pool))) {
+      return res.status(503).json({
+        error: 'Ejecute el Actualizador BD (columna DOCPRODUCTOS.SOLICITADO) antes de enviar a cocina',
+      });
+    }
+    const pedidoPrev = await loadPedido(pool, empnit, coddoc, correlativo);
+    if (!pedidoPrev) return res.status(404).json({ error: 'Comanda no encontrada' });
+    if (!isStatusEditable(pedidoPrev.header?.STATUS)) {
+      return res.status(400).json({ error: 'La comanda no está operada' });
+    }
+    const pending = (pedidoPrev.lines || []).filter((l) => Number(l.SOLICITADO) === 0);
+    if (!pending.length) {
+      return res.json({ ok: true, updated: 0, pedido: pedidoPrev, message: 'No hay productos pendientes de enviar' });
+    }
+    const pendingIds = pending
+      .map((l) => parseInt(l.ID ?? l.Id, 10))
+      .filter((n) => Number.isFinite(n) && n > 0);
+
+    const result = await pool
+      .request()
+      .input('EMPNIT', sql.VarChar, empnit)
+      .input('CODDOC', sql.VarChar, coddoc)
+      .input('CORRELATIVO', sql.Decimal(18, 0), correlativo)
+      .query(`
+        UPDATE dbo.DOCPRODUCTOS
+        SET SOLICITADO = 1
+        WHERE EMPNIT = @EMPNIT AND CODDOC = @CODDOC AND CORRELATIVO = @CORRELATIVO
+          AND ISNULL(SOLICITADO, 0) = 0
+      `);
+    const updated = result.rowsAffected?.[0] || 0;
+    const pedido = await loadPedido(pool, empnit, coddoc, correlativo);
+
+    try {
+      const { fetchCocinaRowsByIds } = require('../lib/despachos-en-cocina');
+      const { emitCocinaNuevo } = require('../lib/socket-hub');
+      const rows = await fetchCocinaRowsByIds(pool, empnit, pendingIds);
+      const mesa = String(rows[0]?.MESA || pedido?.header?.OBS || pedidoPrev?.header?.OBS || '').trim();
+      const n = rows.length || updated;
+      const mensaje =
+        n === 1
+          ? `Cocina: 1 producto nuevo${mesa ? ` · Mesa ${mesa}` : ''}`
+          : `Cocina: ${n} productos nuevos${mesa ? ` · Mesa ${mesa}` : ''}`;
+      emitCocinaNuevo(req.app.locals.io, empnit, {
+        rows,
+        count: n,
+        mesa,
+        coddoc,
+        correlativo,
+        mensaje,
+      });
+    } catch (sockErr) {
+      console.warn('[enviar-cocina] socket cocina:nuevo', sockErr.message);
+    }
+
+    res.json({ ok: true, updated, pedido });
+  } catch (err) {
+    console.warn('[API POST /comandas-restaurante/pedidos/enviar-cocina]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/pedidos/:coddoc/:correlativo/bloquear', async (req, res) => {
   if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });
   const empnit = requireEmpNit(req, res);
@@ -1295,7 +1434,7 @@ router.post('/mesas/:id/abrir', async (req, res) => {
         error: `No hay tipo de documento ${TIPODOC_COMANDA} (comandas) activo para la empresa`,
       });
     }
-    const cliente = await getClienteSnapshot(pool, empnit, 1);
+    const cliente = await getClienteDefault(pool, empnit);
     if (!cliente) {
       return res.status(400).json({ error: 'No hay cliente disponible para la comanda' });
     }

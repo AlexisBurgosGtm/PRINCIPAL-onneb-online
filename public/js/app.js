@@ -333,6 +333,9 @@
       const msg = String(data?.mensaje || '').trim() || 'Nuevo pedido de mostrador';
       F.toast(msg, 'info');
     });
+    if (typeof DespachosEnCocinaView !== 'undefined' && typeof DespachosEnCocinaView.bindSocket === 'function') {
+      DespachosEnCocinaView.bindSocket();
+    }
     if (typeof AutorizacionesUI !== 'undefined') {
       AutorizacionesUI.bindSocket();
     }
@@ -671,6 +674,7 @@
     embarques: 'Embarques (picking)',
     'asignacion-pedidos': 'Asignación de Facturas',
     'pendientes-entrega': 'Pendientes Entrega',
+    'despachos-en-cocina': 'Despachos en Cocina',
     'cuentas-cobrar': 'Cuentas por Cobrar',
     'recibos-caja-cxc': 'Recibos de Caja CXC',
     'cuentas-pagar': 'Cuentas por Pagar',
@@ -694,6 +698,7 @@
     'productos-precios': 'Productos y precios',
     'lista-precios': 'Lista Precios',
     inventario: 'Inventario',
+    'relleno-inventario': 'Relleno de inventario',
     'entradas-inventario': 'Entradas de inventario',
     'salidas-inventario': 'Salidas de inventario',
     'inventario-retroactivo': 'Inventario Retroactivo',
@@ -707,6 +712,7 @@
     'resumen-del-dia': 'Resumen del día',
     autorizaciones: 'Autorizaciones',
     'documentos-eliminados': 'Documentos eliminados',
+    promociones: 'Promociones',
     'auditoria-cajas': 'Auditoría Cajas',
     'reportes-ventas': 'Reportes de Ventas',
     'subir-catalogo': 'Subir catálogo',
@@ -821,6 +827,8 @@
       EmbarquesView.load(mainContent);
     } else if (key === 'asignacion-pedidos' && typeof AsignacionPedidosView !== 'undefined') {
       AsignacionPedidosView.load(mainContent);
+    } else if (key === 'despachos-en-cocina' && typeof DespachosEnCocinaView !== 'undefined') {
+      DespachosEnCocinaView.load(mainContent);
     } else if (key === 'cuentas-cobrar' && typeof CuentasPorCobrarView !== 'undefined') {
       CuentasPorCobrarView.load(mainContent);
     } else if (key === 'recibos-caja-cxc' && typeof RecibosCajaCxcView !== 'undefined') {
@@ -837,6 +845,8 @@
       RecibirTrasladoView.load(mainContent);
     } else if (key === 'inventario' && typeof InventarioView !== 'undefined') {
       InventarioView.load(mainContent);
+    } else if (key === 'relleno-inventario' && typeof InventarioRellenoView !== 'undefined') {
+      InventarioRellenoView.load(mainContent);
     } else if (key === 'inventario-retroactivo' && typeof InventarioRetroactivoView !== 'undefined') {
       InventarioRetroactivoView.load(mainContent);
     } else if (
@@ -860,6 +870,8 @@
       AutorizacionesView.load(mainContent);
     } else if (key === 'documentos-eliminados' && typeof DocumentosEliminadosView !== 'undefined') {
       DocumentosEliminadosView.load(mainContent);
+    } else if (key === 'promociones' && typeof PromocionesView !== 'undefined') {
+      PromocionesView.load(mainContent);
     } else if (key === 'auditoria-cajas' && typeof AuditoriaCajasView !== 'undefined') {
       AuditoriaCajasView.load(mainContent);
     } else if (key === 'reportes-ventas' && typeof ReportesVentasView !== 'undefined') {

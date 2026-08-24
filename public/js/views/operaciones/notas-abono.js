@@ -858,6 +858,9 @@ const NotasAbonoView = {
     });
     if (!ok.isConfirmed) return;
 
+    const coddocFinalizar = key.coddoc;
+    const correlativoFinalizar = key.correlativo;
+
     await F.fetchJson(this.apiUrl(`/pedidos/${encodeURIComponent(key.coddoc)}/${key.correlativo}/finalizar`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -866,6 +869,11 @@ const NotasAbonoView = {
     F.toast('Nota de abono finalizada', 'success');
     this._pedido = null;
     await this.showList();
+    if (typeof DocOpciones !== 'undefined' && DocOpciones.maybeImprimirTicketTrasFinalizar) {
+      await DocOpciones.maybeImprimirTicketTrasFinalizar({
+        onImprimir: () => this.imprimirPedido(coddocFinalizar, correlativoFinalizar),
+      });
+    }
   },
 
   renderListActionsHtml(row) {

@@ -1,39 +1,38 @@
 ---
-description: Proyecto El Salvador — clon OnneB SV, sin FEL GT; vistas no fiscales en ambos cuando se pida
+description: Proyecto El Salvador — FS-SV (FsERP-EL SALVADOR), sin FEL GT; alias Los ERP
 alwaysApply: true
 ---
 
 # Proyecto El Salvador
 
-Proceso acordado. **No clonar ni recortar FEL** hasta que el usuario lo pida y exista la carpeta del producto SV en el workspace.
+## Alias de workspace
+
+- **FS-SV** = carpeta `FsERP-EL SALVADOR` (producto comercial **FS ERP**).
+- **OnneB** = carpeta `OnneB-ERP` (producto OnneB / OnneB PLUS, Guatemala).
+- **Los ERP** = **OnneB + FS-SV** (ambos). Si el usuario dice “Los ERP”, aplicar el cambio en los dos proyectos (salvo que indique solo uno).
+
+Repo / historial de FS-SV aparte de OnneB GT.
+
+## Estado
+
+- Clon poblado desde OnneB (sin `.git` de GT). Motor FEL GT eliminado del clon.
+- Licencias en Mariandre: sección **Licencias FS ERP** (`/licencias-fserp`), ajena a OnneB (catálogo `FSERP_ROOT` / FS-SV). Claves solo en Mariandre (`license-keys-fserp/`). No hay `GENERADOR LICENCIAS` en OnneB ni en FS-SV.
+- Icono instalable: `iconos.png` → `npm run icons`.
+- Puerto típico FS-SV: **6501** (OnneB: 6500).
 
 ## Producto
 
-- **Clon** de OnneB (otro nombre, logos, branding). No un flag `PAIS` dentro de OnneB GT.
-- Repo / remoto **aparte**: El Salvador no debe llevar el código ni el historial FEL de Guatemala.
-- Ambos pueden convivir en **este workspace** (máquina del dueño). Eso no es el entregable SV.
-
-## Cuando el usuario lo pida (carpeta nueva en el workspace)
-
-1. Usar esa carpeta como raíz del clon (nombre comercial el que indique).
-2. Rebrand: nombre, logos, títulos, textos de producto.
-3. **Eliminar el motor FEL de Guatemala** del clon: `lib/fel`, Infile, certificación SAT, tipos FEF/FEC/FES/FNC y pantallas/libros/inventario fiscal amarrados a FEL. No dejarlo “apagado”.
-4. Fiscal SV (DTE / Ministerio de Hacienda, tipos 01, 03, 04, 05, 06, 07, 11, 14, etc.) es **fase posterior**, no reutilizar FEF/FEC.
+- **Clon** (otro nombre, logos, branding). No un flag `PAIS` dentro de OnneB GT.
+- El Salvador no debe llevar el código ni el historial FEL de Guatemala.
+- Ambos pueden convivir en **este workspace**.
 
 ## Vistas no contables / no fiscales
 
-Hasta que exista el clon: implementar **solo en OnneB actual**.
-
-Cuando el usuario pida aplicar el Proyecto El Salvador (o integrar una vista en ambos):
-
-- Copiar e integrar la misma vista en **OnneB GT y el clon SV**.
-- Incluir menú, `MENU_GROUPS` / licencias, JS/CSS y API si aplica (checklist de licencias OnneB).
-- No compartir paquete npm que filtre código GT hacia el repo SV.
-- No copiar FEL, libros SAT, retenciones GT, inventario fiscal GT, ni tipos electrónicos de Guatemala.
-
-Candidatos típicos: despachos, inventario operativo interno, catálogos no fiscales, RH no legal SV.
+- Por defecto implementar en **OnneB** y, si el usuario pide Proyecto El Salvador / ambos / FS-SV, copiar también a **FS-SV** (menú, `MENU_GROUPS`, JS/CSS/API).
+- No copiar FEL, libros SAT, retenciones GT, inventario fiscal GT, ni tipos electrónicos de Guatemala a FS-SV.
+- Fiscal SV (DTE) es **fase posterior** (checklist: `dte-sv-checklist.mdc` — tipodocs SV en cálculos/vistas tipo relleno, reportes, corte, etc.).
 
 ## No hacer
 
-- No mezclar certificación Infile/FEL en el producto SV.
-- No asumir que el workspace multi-root sustituye repos separados para clientes SV.
+- No mezclar certificación Infile/FEL en FS-SV.
+- No emitir licencias FS-SV con el generador OnneB (ni viceversa).

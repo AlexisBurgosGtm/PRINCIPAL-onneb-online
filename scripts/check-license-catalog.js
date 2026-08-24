@@ -72,4 +72,4 @@ if (problems.length) {
 }
 
 console.log(`\n[Licencia] Sidebar: ${sidebarMenus.length} data-menu(s) · Catálogo: ${catalogMenus.size} vista(s)`);
-console.log('[Licencia] Catálogo OK — Mariandre y GENERADOR LICENCIAS leen este mismo MENU_GROUPS.');
+console.log('[Licencia] Catálogo OK — Mariandre lee este mismo MENU_GROUPS.');

@@ -1,0 +1,17 @@
+---
+description: Recordatorio DTE SV — alinear tipodocs con cálculos/vistas OnneB al implementar FEL FS-SV
+alwaysApply: true
+---
+
+# DTE / FEL El Salvador (fase futura)
+
+Al implementar **DTE/FEL en FS-SV** (no FEL GT):
+
+- Definir tipodocs DTE SV propios; **no** copiar Infile/FEL Guatemala.
+- Auditar vistas/cálculos que hoy usan `FAC` + `FEF`/`FES`/`FEC` (OnneB) y actualizar equivalentes en FS-SV.
+
+Prioridad conocida: **Relleno de inventario** (`calcular-min-max`: ventas no anuladas, `TIPOM = SALIDA`), reportes de ventas, corte/cuadre, libros, CXC/documentos.
+
+Detalle operativo: regla `dte-sv-checklist.mdc` en **FsERP-EL SALVADOR**.
+
+Esquema compartido: `scripts/sql/dbo.DTE_SV_SCHEMA.sql` + seed `node scripts/seed-update-query-dte-sv-schema.js` (UPDATE_QUERIES 2026/P) en ambos repos.

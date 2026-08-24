@@ -215,6 +215,52 @@
   transition: background 0.2s, transform 0.15s, opacity 0.2s;
 }
 
+/* Comandas: enviar a cocina — centro de pantalla (misma fila que menú / finalizar) */
+.pos-fab-enviar-cocina {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1052;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  padding: 0;
+  font-size: 1.35rem;
+  line-height: 1;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(234, 88, 12, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 6px 24px rgba(234, 88, 12, 0.35);
+  transition: background 0.2s, transform 0.15s, opacity 0.2s;
+}
+
+.pos-fab-enviar-cocina:hover:not(:disabled) {
+  background: rgba(234, 88, 12, 1);
+  transform: translateX(-50%) translateY(-2px);
+  color: #fff;
+}
+
+.pos-fab-enviar-cocina:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Con botón cocina, el escáner se desplaza a la izquierda para no solaparse */
+.pos-vista-wrap:has(#btn-pos-enviar-cocina) .pos-fab-barcode {
+  left: calc(50% - 3.75rem);
+  transform: translateX(-50%);
+}
+
+.pos-vista-wrap:has(#btn-pos-enviar-cocina) .pos-fab-barcode:hover:not(:disabled) {
+  transform: translateX(-50%) translateY(-2px);
+}
+
 .pos-fab-barcode:hover:not(:disabled) {
   background: rgba(15, 23, 42, 0.96);
   transform: translateX(-50%) translateY(-2px);

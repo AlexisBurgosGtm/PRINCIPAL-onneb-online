@@ -21,6 +21,7 @@ const ConfigGeneralView = {
     MAXIMO_FRACCIONAMIENTO_FACTURAS: 'MAXIMO FRACCIONAMIENTO FACTURAS',
     MUESTRA_DESPROD2_EN_DOCS_Y_PRODS: 'MUESTRA DESPROD2 EN DOCS Y PRODS',
     PERMITE_BIOMETRICO_EN_LOGIN: 'PERMITE BIOMETRICO EN LOGIN',
+    PERMITE_FRACCIONAMIENTO_FACTURAS: 'PERMITE FRACCIONAMIENTO FACTURAS',
     DEFAULT_TIPO_DOCUMENTO_FINALIZADO: 'DEFAULT TIPO DOCUMENTO FINALIZADO',
     LIMITA_EFECTIVO_DISPONIBLE_EN_VALES_CAJA: 'LIMITA EFECTIVO DISPONIBLE EN VALES CAJA',
   },
@@ -73,7 +74,8 @@ const ConfigGeneralView = {
       opcion: 'IMPRIME TICKET AL GUARDAR VENTA',
       title: 'Imprime ticket al guardar venta',
       icon: 'fa-receipt',
-      fallbackDesc: 'Imprime ticket automáticamente al finalizar la venta',
+      fallbackDesc:
+        'Al finalizar facturas (FAC/facturación) y devoluciones (DEV/FNC/FNA), muestra el formato imprimible del sistema. No usa «Muestra formato FEL online» (esa opción solo aplica al certificar FEL).',
     },
     {
       opcion: 'MUESTRA DATOS EN CORTE DE CAJA',
@@ -100,6 +102,13 @@ const ConfigGeneralView = {
       title: 'Certifica al finalizar',
       icon: 'fa-certificate',
       fallbackDesc: 'Al finalizar un documento FEL (FEF/FEC/FNC), certifica automáticamente ante SAT',
+    },
+    {
+      opcion: 'PERMITE FRACCIONAMIENTO FACTURAS',
+      title: 'Permite fraccionamiento facturas',
+      icon: 'fa-scissors',
+      fallbackDesc:
+        'Si está en SI, aparece el botón para enviar facturas normales (FAC) a la cola de fraccionamiento. Si está en NO, el botón no se muestra.',
     },
     {
       opcion: 'FACTURA SE PASA A FRACCIONAMIENTO AUTOM',

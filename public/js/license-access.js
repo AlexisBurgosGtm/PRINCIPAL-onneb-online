@@ -49,6 +49,22 @@ const LicenseAccess = {
     return st.mode === 'licensed' && st.status === 'valid';
   },
 
+  isSuperUser() {
+    try {
+      return Boolean(typeof F !== 'undefined' && F.session?.('user')?.superUser);
+    } catch {
+      return false;
+    }
+  },
+
+  /** Menús siempre visibles aunque no estén en la licencia (Licencia; Actualizador para super usuario). */
+  isLicenseExemptMenu(menuKey) {
+    const key = String(menuKey || '').trim();
+    if (key === 'licencia') return true;
+    if (key === 'updater' && this.isSuperUser()) return true;
+    return false;
+  },
+
   /** null = todos los menús (modo abierto). */
   allowedMenus() {
     const st = this._status;
@@ -60,7 +76,7 @@ const LicenseAccess = {
   canAccessMenu(menuKey) {
     const key = String(menuKey || '').trim();
     if (!key) return false;
-    if (key === 'licencia') return true;
+    if (this.isLicenseExemptMenu(key)) return true;
     const allowed = this.allowedMenus();
     if (!allowed) return true;
     if (allowed.has(key)) return true;
@@ -176,7 +192,7 @@ const LicenseAccess = {
     if (!licensed) return;
     document.querySelectorAll('.sidebar-link[data-menu]').forEach((link) => {
       const key = link.dataset.menu;
-      if (key === 'licencia') {
+      if (this.isLicenseExemptMenu(key)) {
         const li = link.closest('li');
         if (li) li.hidden = false;
         return;

@@ -662,6 +662,65 @@
   --bs-primary-rgb: 22, 163, 74;
 }
 
+[data-theme='fs'] {
+  /* Variante Naturaleza: verde más oscuro + énfasis naranja + fondos blancos */
+  --onneb-brand: #ea580c;
+  --onneb-brand-dark: #c2410c;
+  --onneb-brand-light: #fb923c;
+  --onneb-accent-on-brand: #ffffff;
+
+  --onneb-base-black: #0f3d24;
+  --onneb-base-white: #ffffff;
+
+  --onneb-color-primary: #14532d;
+  --onneb-color-secondary: #ea580c;
+  --onneb-color-accent: #fff7ed;
+  --onneb-text-muted: #fb923c;
+  --onneb-glass-bg: color-mix(in srgb, var(--onneb-brand) 14%, transparent);
+  --onneb-glass-border: color-mix(in srgb, var(--onneb-brand-light) 34%, transparent);
+  --onneb-sidebar-bg: linear-gradient(180deg, #14532d 0%, #0a2e1a 100%);
+
+  --login-bg: #0f3d24;
+  --login-bg-base: #071a10;
+  --login-surface: #14532d;
+  --login-text: #ffffff;
+  --login-text-muted: rgba(255, 255, 255, 0.74);
+  --login-border: rgba(255, 255, 255, 0.28);
+  --login-input-bg: transparent;
+  --login-btn-bg: linear-gradient(90deg, #c2410c 0%, #ea580c 50%, #fb923c 100%);
+  --login-btn-text: #ffffff;
+  --login-glass-fg: rgba(255, 255, 255, 0.96);
+  --login-glass-fg-muted: rgba(255, 255, 255, 0.68);
+  --login-glass-card: rgba(255, 255, 255, 0.11);
+  --login-field-line: rgba(255, 255, 255, 0.44);
+  --login-bg-gradient:
+    radial-gradient(ellipse 95% 75% at 14% 12%, color-mix(in srgb, #fb923c 42%, transparent), transparent 58%),
+    radial-gradient(ellipse 82% 68% at 86% 18%, color-mix(in srgb, #ea580c 36%, #14532d), transparent 52%),
+    radial-gradient(ellipse 90% 80% at 50% 100%, color-mix(in srgb, #0f3d24 70%, #000), transparent 55%),
+    linear-gradient(155deg, #14532d 0%, var(--login-bg-base) 44%, #052e16 100%);
+  --login-glass-surface: var(--login-glass-card);
+  --login-glass-border: rgba(255, 255, 255, 0.22);
+  --login-glass-shadow: color-mix(in srgb, #000 34%, transparent);
+  --login-orb-a: color-mix(in srgb, #fb923c 46%, transparent);
+  --login-orb-b: color-mix(in srgb, #ea580c 40%, transparent);
+  --login-orb-c: color-mix(in srgb, #14532d 42%, transparent);
+  --login-glow: #fb923c;
+
+  --app-bg: #ffffff;
+  --app-surface: #ffffff;
+  --app-text: #0f3d24;
+  --app-text-muted: #57534e;
+  --app-border: color-mix(in srgb, #14532d 12%, #e7e5e4);
+  --header-chip-bg: color-mix(in srgb, #ea580c 8%, #ffffff);
+  --header-chip-border: color-mix(in srgb, #ea580c 22%, transparent);
+  --header-chip-text: #0f3d24;
+
+  --fab-menu-bg: linear-gradient(145deg, #fb923c, #c2410c);
+  --fab-menu-color: #ffffff;
+  --bs-primary: #ea580c;
+  --bs-primary-rgb: 234, 88, 12;
+}
+
 [data-theme='carbon'] .table-light {
   --bs-table-bg: #27272a;
   --bs-table-color: #f4f4f5;

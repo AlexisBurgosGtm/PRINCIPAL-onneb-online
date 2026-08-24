@@ -1,9 +1,11 @@
 -- =============================================================================
 -- MÓDULO NÓMINAS — OnneB PLUS
 -- Ejecutar vía Actualizador BD (UPDATE_QUERIES) o directamente en SQL Server.
+-- Actualizador: npm run seed:updater:nomina (3 lotes @UPDATER_CHUNK en este archivo).
 -- Empleados activos: dbo.Empleados.ACTIVO = 'SI' (equivalente operativo a HABILITADO).
 -- =============================================================================
 
+-- @UPDATER_CHUNK NOMINA_TABLAS
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'NOMINA_CONFIG' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
   CREATE TABLE dbo.NOMINA_CONFIG (
@@ -82,6 +84,7 @@ BEGIN
   CREATE INDEX IX_NOMINA_EMPLEADO_EMP ON dbo.NOMINA_EMPLEADO (EMPNIT, CODEMPLEADO);
 END;
 
+-- @UPDATER_CHUNK NOMINA_PLANILLAS
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'NOMINA_PLANILLAS' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
   CREATE TABLE dbo.NOMINA_PLANILLAS (
@@ -167,6 +170,7 @@ BEGIN
   CREATE INDEX IX_NOMINA_DCON_DET ON dbo.NOMINA_DETALLE_CONCEPTO (DETALLE_ID);
 END;
 
+-- @UPDATER_CHUNK NOMINA_EMPLEADOS_CAMPOS
 -- Campos adicionales en dbo.Empleados para nómina / IGSS
 IF COL_LENGTH('dbo.Empleados', 'PRIMER_NOMBRE') IS NULL
   ALTER TABLE dbo.Empleados ADD PRIMER_NOMBRE VARCHAR(60) NULL;

@@ -4,5 +4,4 @@ data/license.json
 data/menu-acceso-tipos.json
 data/menu-acceso-tipos.json.migrated
 .server.pid
-GENERADOR LICENCIAS/keys/*.pem
-GENERADOR LICENCIAS/.licence.pid
+dist-client/

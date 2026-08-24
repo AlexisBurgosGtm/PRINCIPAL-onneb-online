@@ -6,7 +6,9 @@ const DocOpciones = {
   FEL_URL_OPCION: 'URL FEL',
   CERTIFICA_AL_FINALIZAR_OPCION: 'CERTIFICA AL FINALIZAR',
   FACTURA_SE_PASA_A_FRACCIONAMIENTO_AUTOM_OPCION: 'FACTURA SE PASA A FRACCIONAMIENTO AUTOM',
+  PERMITE_FRACCIONAMIENTO_FACTURAS_OPCION: 'PERMITE FRACCIONAMIENTO FACTURAS',
   MUESTRA_FORMATO_FEL_ONLINE_OPCION: 'MUESTRA FORMATO FEL ONLINE',
+  IMPRIME_TICKET_AL_GUARDAR_VENTA_OPCION: 'IMPRIME TICKET AL GUARDAR VENTA',
 
   EDITOR_BY_TIPODOC: {
     ENV: { menu: 'pedidos-mostrador', view: () => PosView },
@@ -233,6 +235,15 @@ const DocOpciones = {
     return String(data.sino ?? 'NO').trim().toUpperCase() === 'SI';
   },
 
+  async fetchPermiteFraccionamientoFacturas() {
+    const params = new URLSearchParams({
+      opcion: this.PERMITE_FRACCIONAMIENTO_FACTURAS_OPCION,
+      _: String(Date.now()),
+    });
+    const data = await F.fetchJson(`/api/config/sino?${params}`, { cache: 'no-store' });
+    return String(data.sino ?? 'SI').trim().toUpperCase() === 'SI';
+  },
+
   async fetchFacturaSePasaAFraccionamientoAutom() {
     const params = new URLSearchParams({
       opcion: this.FACTURA_SE_PASA_A_FRACCIONAMIENTO_AUTOM_OPCION,
@@ -251,6 +262,34 @@ const DocOpciones = {
     const modo = String(data.modo ?? 'NO').trim().toUpperCase();
     if (modo === 'SI' || modo === 'AMBOS') return modo;
     return 'NO';
+  },
+
+  async fetchImprimeTicketAlGuardarVenta() {
+    const params = new URLSearchParams({
+      opcion: this.IMPRIME_TICKET_AL_GUARDAR_VENTA_OPCION,
+      _: String(Date.now()),
+    });
+    const data = await F.fetchJson(`/api/config/sino?${params}`, { cache: 'no-store' });
+    return String(data.sino ?? 'NO').trim().toUpperCase() === 'SI';
+  },
+
+  /**
+   * Tras finalizar FAC / facturación / DEV / FNC / FNA:
+   * si IMPRIME TICKET AL GUARDAR VENTA = SI → muestra formato imprimible del sistema.
+   * No consulta MUESTRA FORMATO FEL ONLINE (solo aplica en certificación FEL).
+   * @param {{ alreadyPrintedSistema?: boolean, onImprimir?: () => Promise<void>|void }} opts
+   */
+  async maybeImprimirTicketTrasFinalizar(opts = {}) {
+    if (opts.alreadyPrintedSistema) return false;
+    let imprime = false;
+    try {
+      imprime = await this.fetchImprimeTicketAlGuardarVenta();
+    } catch (_) {
+      return false;
+    }
+    if (!imprime || typeof opts.onImprimir !== 'function') return false;
+    await opts.onImprimir();
+    return true;
   },
 
   esTipoCertificableFel(tipodoc) {
@@ -398,9 +437,19 @@ const DocOpciones = {
     if (!telefono) return false;
     const doc = await this.fetchDetalle(coddoc, correlativo);
     const text = this.buildWhatsappDetalleText(doc, row);
-    const url = `https://wa.me/502${telefono}?text=${encodeURIComponent(text)}`;
+    return this.abrirWhatsapp(telefono, text);
+  },
+
+  abrirWhatsapp(telefono8, text) {
+    const url = `https://wa.me/502${telefono8}?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
     return true;
+  },
+
+  async enviarWhatsappTexto(text) {
+    const telefono = await this.solicitarTelefonoWhatsapp();
+    if (!telefono) return false;
+    return this.abrirWhatsapp(telefono, text);
   },
 
   detalleUrl(coddoc, correlativo) {

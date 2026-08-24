@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "SPA POS OnneB - vanilla JS, Socket.IO, MSSQL",
   "main": "server.js",
+  "bin": "server.js",
   "scripts": {
     "prestart": "node scripts/bump-build.js",
     "start": "node server.js",
@@ -12,12 +13,36 @@
     "icons": "node scripts/generate-icons.js",
     "watch:build": "node scripts/watch-build.js",
     "postinstall": "node scripts/generate-icons.js",
-    "license:gen": "node \"GENERADOR LICENCIAS/server.js\"",
-    "licence": "node \"GENERADOR LICENCIAS/server.js\"",
-    "stop-licence": "node scripts/stop-licence.js",
-    "stop": "node scripts/npm-stop.js",
+    "stop": "node scripts/stop-server.js",
     "license:check": "node scripts/check-license-catalog.js",
+    "seed:updater:nomina": "node scripts/seed-update-query-nomina-all.js",
+    "dist:client": "node scripts/dist-client.js",
     "test": "nodemon server.js"
+  },
+  "distClient": {
+    "product": "OnneB",
+    "exe": "OnneB-Server.exe",
+    "serviceId": "OnneB-ERP",
+    "serviceName": "OnneB ERP",
+    "port": "6500"
+  },
+  "pkg": {
+    "scripts": [
+      "server.js",
+      "routes/**/*.js",
+      "lib/**/*.js",
+      "config/**/*.js"
+    ],
+    "assets": [
+      "public/**/*",
+      "config/**/*",
+      "data/config-tipos-documento.json",
+      "data/fel-adendas.json"
+    ],
+    "targets": [
+      "node22-win-x64"
+    ],
+    "outputPath": "dist-client"
   },
   "keywords": [
     "pos",
@@ -38,8 +63,10 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@yao-pkg/pkg": "^6.22.0",
     "nodemon": "^3.1.9",
     "pace-js": "^1.2.4",
-    "sharp": "^0.35.1"
+    "sharp": "^0.35.1",
+    "terser": "^5.50.0"
   }
 }

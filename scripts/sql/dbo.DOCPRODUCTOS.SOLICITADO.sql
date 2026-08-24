@@ -1,0 +1,9 @@
+-- DOCPRODUCTOS.SOLICITADO:
+--   0 = pendiente de enviar a cocina
+--   1 = enviado a cocina (pendiente de despacho)
+--   2 = despachado
+IF COL_LENGTH('dbo.DOCPRODUCTOS', 'SOLICITADO') IS NULL
+BEGIN
+  ALTER TABLE dbo.DOCPRODUCTOS ADD SOLICITADO INT NOT NULL
+    CONSTRAINT DF_DOCPRODUCTOS_SOLICITADO DEFAULT (0);
+END

@@ -136,7 +136,8 @@
 }
 
 .cxp-table tbody tr.cxp-row,
-.cxp-table tbody tr.cxp-resumen-row {
+.cxp-table tbody tr.cxp-resumen-row,
+.cxp-table tbody tr.cxp-prod-row {
   cursor: pointer;
 }
 
