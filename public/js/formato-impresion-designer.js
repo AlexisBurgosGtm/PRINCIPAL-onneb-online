@@ -83,6 +83,8 @@ ${this.designerChromeCss()}
       html: `<div class="doc-meta-grid">
   <div class="doc-meta-item"><strong>Documento:</strong> {{DOC.DOCUMENTO_LABEL}}</div>
   <div class="doc-meta-item"><strong>Fecha:</strong> {{DOC.FECHA}}</div>
+  {{#DOC.SERIE}}<div class="doc-meta-item"><strong>Serie:</strong> {{DOC.SERIE}}</div>{{/DOC.SERIE}}
+  {{#DOC.NUMERO}}<div class="doc-meta-item"><strong>Número:</strong> {{DOC.NUMERO}}</div>{{/DOC.NUMERO}}
   <div class="doc-meta-item"><strong>Cliente:</strong> {{DOC.DOC_NOMCLIE}}</div>
   <div class="doc-meta-item"><strong>NIT:</strong> {{DOC.DOC_NIT}}</div>
   <div class="doc-meta-item"><strong>Dirección:</strong> {{DOC.DOC_DIRCLIE}}</div>

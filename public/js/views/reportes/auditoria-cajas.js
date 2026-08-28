@@ -20,11 +20,24 @@ const AuditoriaCajasView = {
   _loading: false,
   _totalGeneral: 0,
   _totalDocs: 0,
+  _selectedRubro: 'facturas-normales',
 
   DOC_COLSPAN: 12,
+  TIPODOC_FAC: ['FAC'],
+  TIPODOC_FEL: ['FEF', 'FES', 'FEC'],
   TIPODOC_FACTURA: ['FAC', 'FEF', 'FES', 'FEC'],
   TIPODOC_DEVOLUCION: ['DEV', 'FNC'],
   TIPODOC_RECIBOS: ['RCC', 'PRC'],
+
+  RUBROS: [
+    { id: 'efectivo-inicial', label: 'Efectivo inicial', hasDocs: false },
+    { id: 'facturas-normales', label: 'Facturas normales (Envíos)', hasDocs: true },
+    { id: 'facturas-contado', label: 'Facturas contado (FEL contado)', hasDocs: true },
+    { id: 'facturas-credito', label: 'Facturas crédito (FEL y FAC crédito)', hasDocs: true },
+    { id: 'pagos-clientes', label: 'Pagos clientes (RCC y PRC)', hasDocs: true },
+    { id: 'vales-caja', label: 'Vales de caja', hasDocs: true },
+    { id: 'retiros-caja', label: 'Retiros de caja', hasDocs: true },
+  ],
 
   escapeHtml(value) {
     if (value === null || value === undefined) return '';
@@ -217,7 +230,8 @@ const AuditoriaCajasView = {
     this._totalGeneral = Number(data.totalGeneral) || 0;
     this._totalDocs = Number(data.totalDocs) || 0;
     this._concreFilter = '';
-    this._selectedTipodoc = this._grupos.length ? this._selectorTodos : this._selectorProductos;
+    this._selectedTipodoc = this._selectorTodos;
+    this._selectedRubro = 'facturas-normales';
     this._filters = {};
     this._filters[this._selectorTodos] = '';
     for (const g of this._grupos) {
@@ -287,14 +301,24 @@ const AuditoriaCajasView = {
     const isCredito = concre === 'CRE';
     const badgeClass = isCredito ? 'text-bg-danger' : 'text-bg-primary';
     const badgeLabel = isCredito ? 'Crédito' : 'Contado';
-    const printBtn = r.ES_RETIRO || r.ES_VALE_CAJA
-      ? '<span class="text-muted small">—</span>'
-      : `<button type="button" class="btn btn-sm btn-outline-secondary audcaja-doc-print"
-            title="Imprimir documento"
+    const canPrint =
+      !r.ES_RETIRO &&
+      !r.ES_VALE_CAJA &&
+      r.CODDOC != null &&
+      String(r.CODDOC).trim() !== '' &&
+      r.CORRELATIVO != null &&
+      r.CORRELATIVO !== '';
+    const printBtn = canPrint
+      ? `<button type="button" class="btn btn-sm btn-outline-secondary audcaja-doc-print"
+            title="Imprimir / visualizar documento"
             data-coddoc="${this.escapeHtml(r.CODDOC)}"
             data-corr="${this.escapeHtml(r.CORRELATIVO)}">
             <i class="fa-solid fa-print"></i>
-          </button>`;
+          </button>`
+      : '<span class="text-muted small">—</span>';
+    const clienteLabel = r.ES_RETIRO
+      ? [r.CLIENTE, r.NODOCUMENTO ? `Boleta ${r.NODOCUMENTO}` : null].filter(Boolean).join(' · ')
+      : r.CLIENTE || '—';
     return `
       <tr class="${anulado ? 'audcaja-row-anulado' : ''}"
         data-coddoc="${this.escapeHtml(r.CODDOC)}"
@@ -302,7 +326,7 @@ const AuditoriaCajasView = {
         <td class="text-nowrap">${this.escapeHtml(this.formatFecha(r.FECHA))}</td>
         <td>${this.escapeHtml(r.CODDOC || '—')}</td>
         <td class="text-end">${this.escapeHtml(r.CORRELATIVO ?? '—')}</td>
-        <td>${this.escapeHtml(r.CLIENTE || '—')}</td>
+        <td>${this.escapeHtml(clienteLabel)}</td>
         <td class="text-center">
           <span class="badge ${badgeClass} audcaja-badge-concre">${this.escapeHtml(badgeLabel)}</span>
         </td>
@@ -312,7 +336,7 @@ const AuditoriaCajasView = {
         <td class="text-end">${this.escapeHtml(this.formatMoneyCell(r.FPAGO_CHEQUE))}</td>
         <td class="text-end">${this.escapeHtml(this.formatMoney(r.IMPORTE))}</td>
         <td class="text-center">${this.escapeHtml(r.STATUS)}</td>
-        <td class="text-center">${printBtn}</td>
+        <td class="text-center text-nowrap" style="width:2.5rem">${printBtn}</td>
       </tr>`;
   },
 
@@ -325,7 +349,8 @@ const AuditoriaCajasView = {
         <td class="text-end fw-semibold audcaja-tot-dep">${this.escapeHtml(this.formatMoney(totales.totalDeposito))}</td>
         <td class="text-end fw-semibold audcaja-tot-che">${this.escapeHtml(this.formatMoney(totales.totalCheque))}</td>
         <td class="text-end fw-semibold audcaja-grupo-total">${this.escapeHtml(this.formatMoney(totales.total))}</td>
-        <td colspan="2"></td>
+        <td></td>
+        <td></td>
       </tr>`;
   },
 
@@ -487,13 +512,16 @@ const AuditoriaCajasView = {
     const body = !rows.length
       ? `<tr><td colspan="${this.DOC_COLSPAN}" class="text-center text-muted py-2">Sin filas</td></tr>`
       : rows.map((r) => this.renderDocRow(r)).join('');
-    const title = grupo.ES_TODOS
-      ? 'Todos los documentos'
-      : `${this.escapeHtml(grupo.TIPODOC)}
+    const title = grupo.ES_RUBRO
+      ? this.escapeHtml(grupo.DESDOC || this.rubroTitulo(grupo.TIPODOC))
+      : grupo.ES_TODOS
+        ? 'Todos los documentos'
+        : `${this.escapeHtml(grupo.TIPODOC)}
               <span class="text-muted fw-normal">— ${this.escapeHtml(grupo.DESDOC || '')}</span>`;
     const metaTipos = grupo.ES_TODOS
       ? ` · ${(this._grupos || []).length} tipo(s)`
       : '';
+    const pagoMeta = grupo.ES_RUBRO ? '' : ` · Pago: ${this.escapeHtml(this.concreFilterLabel())}`;
 
     return `
       <section class="audcaja-grupo" data-tipodoc="${this.escapeHtml(grupo.TIPODOC)}">
@@ -502,7 +530,7 @@ const AuditoriaCajasView = {
             <h3 class="audcaja-grupo-title mb-0">${title}</h3>
             <div class="text-muted audcaja-grupo-meta">${rows.length} de ${grupo.count} doc(s)${
               grupo.anulados ? ` · ${grupo.anulados} anulado(s)` : ''
-            }${metaTipos} · Pago: ${this.escapeHtml(this.concreFilterLabel())}</div>
+            }${metaTipos}${pagoMeta}</div>
           </div>
           <div class="audcaja-grupo-search">
             <input type="search" class="form-control form-control-sm audcaja-grupo-q"
@@ -525,30 +553,32 @@ const AuditoriaCajasView = {
                 <th class="text-end">Cheque</th>
                 <th class="text-end">Importe</th>
                 <th class="text-center">Status</th>
-                <th class="text-center" style="width:2.75rem"></th>
+                <th class="text-center" style="width:2.5rem"></th>
               </tr>
             </thead>
             <tbody>${body}</tbody>
-          </table>
-        </div>
-        <div class="audcaja-grupo-footer">
-          <table class="table table-sm align-middle mb-0 audcaja-table">
-            <tbody class="audcaja-foot-body">${this.renderGrupoFoot(totales)}</tbody>
+            <tfoot class="audcaja-grupo-footer">
+              ${this.renderGrupoFoot(totales)}
+            </tfoot>
           </table>
         </div>
       </section>`;
   },
 
   detailContentHtml() {
-    if (!this._grupos.length && !(this._productos || []).length) {
-      return `<p class="text-muted mb-0">Este corte no tiene documentos marcados (NOCORTE).</p>`;
+    const rubro = this.RUBROS.find((r) => r.id === this._selectedRubro) || this.RUBROS[0];
+    if (!rubro) {
+      return `<p class="text-muted mb-0">Seleccione un rubro del resumen.</p>`;
     }
-    if (this.isProductosView()) return this.renderProductosTable();
-    const tipodocOpts = this.tipodocOptionsHtml();
-    if (!tipodocOpts) return `<p class="text-muted mb-0">Sin tipos de documento en este corte.</p>`;
-    const grupos = this.visibleGrupos();
-    if (!grupos.length) return `<p class="text-muted mb-0">Seleccione un tipo de documento.</p>`;
-    return grupos.map((g) => this.renderGrupoTable(g)).join('');
+    if (!rubro.hasDocs) {
+      return `<p class="text-muted mb-0 px-1">El efectivo inicial no tiene documentos asociados.</p>`;
+    }
+    const grupo = this.buildRubroGrupo(rubro.id);
+    if (!grupo) {
+      return `<p class="text-muted mb-0">Sin documentos en este rubro.</p>`;
+    }
+    this._filters[rubro.id] = this._filters[rubro.id] || '';
+    return this.renderGrupoTable(grupo);
   },
 
   allDocRows() {
@@ -563,47 +593,87 @@ const AuditoriaCajasView = {
     return set.has(String(row.TIPODOC || '').trim().toUpperCase());
   },
 
+  isCredito(row) {
+    return String(row.CONCRE || '').toUpperCase() === 'CRE';
+  },
+
   filterRowsByRubro(filtro) {
     const rows = this.allDocRows();
-    const fac = new Set(this.TIPODOC_FACTURA);
-    const dev = new Set(this.TIPODOC_DEVOLUCION);
+    const fac = new Set(this.TIPODOC_FAC);
+    const fel = new Set(this.TIPODOC_FEL);
+    const factura = new Set(this.TIPODOC_FACTURA);
     const rcc = new Set(this.TIPODOC_RECIBOS);
     switch (String(filtro || '')) {
+      case 'efectivo-inicial':
+        return [];
+      case 'facturas-normales':
+        return rows.filter((r) => this.inTipoSet(r, fac) && !this.isCredito(r));
+      case 'facturas-contado':
+        return rows.filter((r) => this.inTipoSet(r, fel) && !this.isCredito(r));
+      case 'facturas-credito':
+        return rows.filter((r) => this.inTipoSet(r, factura) && this.isCredito(r));
+      case 'pagos-clientes':
+        return rows.filter((r) => this.inTipoSet(r, rcc));
+      case 'vales-caja':
+        return rows.filter((r) => r.ES_VALE_CAJA);
+      case 'retiros-caja':
+        return rows.filter((r) => r.ES_RETIRO);
+      // Legado (impresión / compat)
       case 'todos':
         return rows;
       case 'ventas':
-        return rows.filter((r) => this.inTipoSet(r, fac));
-      case 'devoluciones':
+        return rows.filter((r) => this.inTipoSet(r, factura));
+      case 'devoluciones': {
+        const dev = new Set(this.TIPODOC_DEVOLUCION);
         return rows.filter((r) => this.inTipoSet(r, dev));
+      }
       case 'credito':
-        return rows.filter(
-          (r) =>
-            String(r.CONCRE || '').toUpperCase() === 'CRE' &&
-            !this.inTipoSet(r, dev) &&
-            !this.inTipoSet(r, rcc)
-        );
+        return rows.filter((r) => this.inTipoSet(r, factura) && this.isCredito(r));
       case 'recibos':
         return rows.filter((r) => this.inTipoSet(r, rcc));
       case 'efectivo':
-        return rows.filter((r) => Number(r.FPAGO_EFECTIVO) > 0 && !this.inTipoSet(r, dev));
+        return rows.filter((r) => Number(r.FPAGO_EFECTIVO) > 0);
       case 'tarjeta':
-        return rows.filter((r) => Number(r.FPAGO_TARJETA) > 0 && !this.inTipoSet(r, dev));
+        return rows.filter((r) => Number(r.FPAGO_TARJETA) > 0);
       case 'deposito':
-        return rows.filter((r) => Number(r.FPAGO_DEPOSITO) > 0 && !this.inTipoSet(r, dev));
+        return rows.filter((r) => Number(r.FPAGO_DEPOSITO) > 0);
       case 'cheque':
-        return rows.filter((r) => Number(r.FPAGO_CHEQUE) > 0 && !this.inTipoSet(r, dev));
-      case 'vales-caja':
-        return rows.filter((r) => r.ES_VALE_CAJA);
+        return rows.filter((r) => Number(r.FPAGO_CHEQUE) > 0);
       case 'retiros':
         return rows.filter((r) => r.ES_RETIRO);
-      case 'anuladas':
-        return rows.filter((r) => r.STATUS === 'A' && this.inTipoSet(r, fac));
       default:
         return [];
     }
   },
 
+  rubroTotales(rows) {
+    return (rows || []).reduce(
+      (acc, r) => {
+        if (r.STATUS === 'A') return acc;
+        acc.total += Number(r.IMPORTE) || 0;
+        acc.totalEfectivo += Number(r.FPAGO_EFECTIVO) || 0;
+        acc.totalTarjeta += Number(r.FPAGO_TARJETA) || 0;
+        acc.totalDeposito += Number(r.FPAGO_DEPOSITO) || 0;
+        acc.totalCheque += Number(r.FPAGO_CHEQUE) || 0;
+        return acc;
+      },
+      { total: 0, totalEfectivo: 0, totalTarjeta: 0, totalDeposito: 0, totalCheque: 0 }
+    );
+  },
+
+  resumenRubroValue(rubroId) {
+    const r = this._print?.resumen || {};
+    if (rubroId === 'efectivo-inicial') {
+      return this.formatMoney(r.efectivoInicial || 0);
+    }
+    const rows = this.filterRowsByRubro(rubroId);
+    const tot = this.rubroTotales(rows);
+    return this.formatMoney(tot.total);
+  },
+
   rubroTitulo(filtro) {
+    const found = this.RUBROS.find((r) => r.id === filtro);
+    if (found) return found.label;
     const map = {
       todos: 'Movimientos / documentos',
       ventas: 'Ventas brutas',
@@ -631,11 +701,13 @@ const AuditoriaCajasView = {
   },
 
   renderResumenItem(label, value, filtro, extraClass = '') {
-    const cls = extraClass ? ` ${extraClass}` : '';
+    const selected = filtro && String(filtro) === String(this._selectedRubro);
+    const cls = `${extraClass ? ` ${extraClass}` : ''}${selected ? ' is-selected' : ''}`;
     if (filtro) {
       return `
         <button type="button" class="audcaja-resumen-item audcaja-resumen-click${cls}"
-          data-audcaja-filtro="${this.escapeHtml(filtro)}" title="Ver documentos de este rubro">
+          data-audcaja-filtro="${this.escapeHtml(filtro)}" title="Ver documentos de este rubro"
+          aria-pressed="${selected ? 'true' : 'false'}">
           <span class="audcaja-resumen-label">${this.escapeHtml(label)}</span>
           <span class="audcaja-resumen-value">${this.escapeHtml(value)}</span>
         </button>`;
@@ -648,38 +720,16 @@ const AuditoriaCajasView = {
   },
 
   renderResumenHtml() {
-    const r = this._print?.resumen || {};
-    const reportado = this._print?.reportado || {};
-    const faltante = Number(this._print?.faltante) || 0;
-    const sobrante = Number(this._print?.sobrante) || 0;
-    const diffHtml =
-      faltante > 0
-        ? this.renderResumenItem('Faltante', this.formatMoney(faltante), '', 'text-danger')
-        : sobrante > 0
-          ? this.renderResumenItem('Sobrante', this.formatMoney(sobrante), '', 'text-success')
-          : this.renderResumenItem('Diferencia efectivo', 'Sin diferencia', '');
-
     return `
       <div class="audcaja-resumen-list">
-        ${this.renderResumenItem('Movimientos', String(r.totalMovimientos ?? 0), 'todos')}
-        ${this.renderResumenItem('Ventas brutas', this.formatMoney(r.totalVentasBrutas ?? r.totalVenta), 'ventas')}
-        ${this.renderResumenItem('Notas de crédito', this.formatMoney(r.totalDevoluciones || 0), 'devoluciones', 'text-danger')}
-        ${this.renderResumenItem('Total venta (neto)', this.formatMoney(r.totalVenta), 'todos')}
-        ${this.renderResumenItem('Crédito', this.formatMoney(r.totalCredito), 'credito')}
-        ${this.renderResumenItem('Recibos RCC/PRC', this.formatMoney(r.totalRecibos || 0), 'recibos', 'text-success')}
-        ${this.renderResumenItem('Vales de caja (−)', this.formatMoney(r.totalValesCaja || 0), 'vales-caja', 'text-danger')}
-        ${this.renderResumenItem('Retiros a banco (−)', this.formatMoney(r.totalRetiros || 0), 'retiros', 'text-danger')}
-        ${this.renderResumenItem('Efectivo esperado', this.formatMoney(r.efectivoEsperado), 'efectivo', 'text-primary')}
-        ${this.renderResumenItem('Efectivo (neto)', this.formatMoney(r.fpEfectivo), 'efectivo')}
-        ${this.renderResumenItem('Tarjeta', this.formatMoney(r.fpTarjeta), 'tarjeta')}
-        ${this.renderResumenItem('Depósito', this.formatMoney(r.fpDeposito), 'deposito')}
-        ${this.renderResumenItem('Cheque', this.formatMoney(r.fpCheque), 'cheque')}
-        <div class="audcaja-resumen-sep">Arqueo reportado</div>
-        ${this.renderResumenItem('Efectivo contado', this.formatMoney(reportado.efectivo), '')}
-        ${this.renderResumenItem('Tarjeta reportada', this.formatMoney(reportado.tarjeta), '')}
-        ${this.renderResumenItem('Cheques reportados', this.formatMoney(reportado.cheques), '')}
-        ${this.renderResumenItem('Depósito reportado', this.formatMoney(reportado.deposito), '')}
-        ${diffHtml}
+        ${this.RUBROS.map((rubro) =>
+          this.renderResumenItem(
+            rubro.label,
+            this.resumenRubroValue(rubro.id),
+            rubro.id,
+            rubro.id === 'vales-caja' || rubro.id === 'retiros-caja' ? 'text-danger' : ''
+          )
+        ).join('')}
       </div>`;
   },
 
@@ -738,9 +788,17 @@ const AuditoriaCajasView = {
     });
   },
 
+  selectRubro(filtro) {
+    if (!filtro) return;
+    this._selectedRubro = String(filtro);
+    const resumen = this._container?.querySelector('#audcaja-resumen');
+    if (resumen) resumen.innerHTML = this.renderResumenHtml();
+    this.refreshGruposPanel();
+  },
+
   renderDetailHtml() {
     const c = this._corte || {};
-    const tipodocOpts = this.tipodocOptionsHtml();
+    const rubroLabel = this.rubroTitulo(this._selectedRubro);
 
     return `
       <div class="pos-list-wrap audcaja-wrap audcaja-detail">
@@ -760,19 +818,6 @@ const AuditoriaCajasView = {
             </p>
           </div>
           <div class="d-flex flex-wrap align-items-end gap-2">
-            <div>
-              <label class="form-label form-label-sm mb-0" for="audcaja-tipodoc">Tipo de documento</label>
-              <select id="audcaja-tipodoc" class="form-select form-select-sm audcaja-tipodoc-select"
-                ${tipodocOpts ? '' : 'disabled'}>
-                ${tipodocOpts || '<option value="">Sin tipos</option>'}
-              </select>
-            </div>
-            <div>
-              <label class="form-label form-label-sm mb-0" for="audcaja-concre">Contado / Crédito</label>
-              <select id="audcaja-concre" class="form-select form-select-sm audcaja-concre-select">
-                ${this.concreOptionsHtml()}
-              </select>
-            </div>
             <button type="button" class="btn btn-sm btn-outline-primary" id="audcaja-print-cuadre">
               <i class="fa-solid fa-receipt me-1"></i>Imprimir Cuadre
             </button>
@@ -792,7 +837,11 @@ const AuditoriaCajasView = {
           </div>
           <div class="col-12 col-lg-8 d-flex">
             <div class="card shadow-sm w-100 audcaja-docs-card">
-              <div class="card-body p-2 d-flex flex-column min-h-0" id="audcaja-grupos">
+              <div class="card-header py-2 fw-semibold d-flex justify-content-between align-items-center gap-2">
+                <span>Detalle del corte</span>
+                <span class="small text-muted fw-normal text-truncate" id="audcaja-detalle-rubro">${this.escapeHtml(rubroLabel)}</span>
+              </div>
+              <div class="card-body p-2 d-flex flex-column min-h-0 audcaja-docs-body" id="audcaja-grupos">
                 ${this.detailContentHtml()}
               </div>
             </div>
@@ -812,11 +861,15 @@ const AuditoriaCajasView = {
     const scroll = this._container?.querySelector('#audcaja-grupos');
     if (!scroll) return;
     scroll.innerHTML = this.detailContentHtml();
+    const rubroLabel = this._container?.querySelector('#audcaja-detalle-rubro');
+    if (rubroLabel) rubroLabel.textContent = this.rubroTitulo(this._selectedRubro);
     this.bindDetailGrupoEvents();
   },
 
   bindDocPrintButtons(root) {
     root?.querySelectorAll('.audcaja-doc-print').forEach((btn) => {
+      if (btn.dataset.boundPrint === '1') return;
+      btn.dataset.boundPrint = '1';
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -863,14 +916,6 @@ const AuditoriaCajasView = {
     }
 
     this._container.querySelector('#audcaja-back')?.addEventListener('click', () => this.backToList());
-    this._container.querySelector('#audcaja-tipodoc')?.addEventListener('change', (e) => {
-      this._selectedTipodoc = String(e.target.value || '');
-      this.refreshGruposPanel();
-    });
-    this._container.querySelector('#audcaja-concre')?.addEventListener('change', (e) => {
-      this._concreFilter = String(e.target.value || '');
-      this.refreshGruposPanel();
-    });
     this._container.querySelector('#audcaja-print-cuadre')?.addEventListener('click', () => {
       this.imprimirCuadre().catch((err) => F.toast(err.message || 'No se pudo imprimir el cuadre', 'error'));
     });
@@ -883,9 +928,23 @@ const AuditoriaCajasView = {
       const btn = e.target.closest('[data-audcaja-filtro]');
       if (!btn) return;
       const filtro = btn.getAttribute('data-audcaja-filtro');
-      if (filtro) this.showRubroModal(filtro);
+      if (filtro) this.selectRubro(filtro);
     });
     this.bindDetailGrupoEvents();
+  },
+
+  buildRubroGrupo(rubroId) {
+    const rubro = this.RUBROS.find((r) => r.id === rubroId);
+    if (!rubro || !rubro.hasDocs) return null;
+    const rows = this.filterRowsByRubro(rubroId);
+    return {
+      TIPODOC: rubroId,
+      DESDOC: rubro.label,
+      rows,
+      count: rows.length,
+      anulados: rows.filter((r) => r.STATUS === 'A').length,
+      ES_RUBRO: true,
+    };
   },
 
   refreshGrupo(tipodoc) {
@@ -893,22 +952,24 @@ const AuditoriaCajasView = {
       `.audcaja-grupo[data-tipodoc="${String(tipodoc).replace(/"/g, '')}"]`
     );
     const grupo =
-      String(tipodoc) === String(this._selectorTodos)
+      this.buildRubroGrupo(tipodoc) ||
+      (String(tipodoc) === String(this._selectorTodos)
         ? this.buildTodosGrupo()
-        : this._grupos.find((g) => g.TIPODOC === tipodoc);
+        : this._grupos.find((g) => g.TIPODOC === tipodoc));
     if (!section || !grupo) return;
 
     const rows = this.filteredGrupoRows(grupo);
     const totales = this.grupoTotalesFiltrados(grupo);
     const tbody = section.querySelector('.audcaja-grupo-scroll tbody');
-    const footBody = section.querySelector('.audcaja-foot-body');
+    const tfoot = section.querySelector('.audcaja-grupo-scroll tfoot');
     const meta = section.querySelector('.audcaja-grupo-meta');
 
     if (meta) {
       const metaTipos = grupo.ES_TODOS ? ` · ${(this._grupos || []).length} tipo(s)` : '';
+      const pagoMeta = grupo.ES_RUBRO ? '' : ` · Pago: ${this.concreFilterLabel()}`;
       meta.textContent = `${rows.length} de ${grupo.count} doc(s)${
         grupo.anulados ? ` · ${grupo.anulados} anulado(s)` : ''
-      }${metaTipos} · Pago: ${this.concreFilterLabel()}`;
+      }${metaTipos}${pagoMeta}`;
     }
 
     if (tbody) {
@@ -917,7 +978,7 @@ const AuditoriaCajasView = {
         : rows.map((r) => this.renderDocRow(r)).join('');
       this.bindDocPrintButtons(tbody);
     }
-    if (footBody) footBody.innerHTML = this.renderGrupoFoot(totales);
+    if (tfoot) tfoot.innerHTML = this.renderGrupoFoot(totales);
   },
 
   async printDocumento(coddoc, correlativo, btn) {

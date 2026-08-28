@@ -173,9 +173,19 @@ const DocPrint = {
   buildDocumentHtml({ title, header, lines, extraMeta = [], footerNote = '' }, formato = 'CARTA') {
     const h = header || {};
     const ticket = this.isTicket(formato);
+    const tipodoc = String(h.TIPODOC || '').trim().toUpperCase();
+    const esCompra = tipodoc === 'COM' || tipodoc === 'COP';
+    const serie = esCompra
+      ? String(h.SERIEFAC || '').trim()
+      : String(h.FEL_SERIE || '').trim();
+    const numero = esCompra
+      ? String(h.NOFAC || '').trim()
+      : String(h.FEL_NUMERO || '').trim();
     const meta = [
       this.metaItem('Documento', `${h.CODDOC || ''} #${h.CORRELATIVO ?? ''}`),
       this.metaItem('Fecha', this.formatFecha(h.FECHA)),
+      this.metaItem('Serie', serie),
+      this.metaItem('Número', numero),
       this.metaItem('Usuario', h.USUARIO),
       this.metaItem('Cliente', h.DOC_NOMCLIE),
       this.metaItem('NIT', h.DOC_NIT),

@@ -1239,7 +1239,7 @@ const ComprasView = {
             subtitleHtml: `
               <p><strong>${this.escapeHtml(h.CODDOC)} #${h.CORRELATIVO}</strong> · ${this.formatFechaCompra(h)} · ${PrintReport.escapeHtml(h.USUARIO || '')}</p>
               <p><strong>Proveedor:</strong> ${PrintReport.escapeHtml(h.DOC_NOMCLIE || '—')}</p>
-              ${h.SERIEFAC || h.NOFAC ? `<p><strong>Factura:</strong> ${PrintReport.escapeHtml(h.SERIEFAC || '')} ${PrintReport.escapeHtml(h.NOFAC || '')}</p>` : ''}
+              ${h.SERIEFAC || h.NOFAC ? `<p><strong>Serie:</strong> ${PrintReport.escapeHtml(h.SERIEFAC || '')} · <strong>Número:</strong> ${PrintReport.escapeHtml(h.NOFAC || '')}</p>` : ''}
               ${h.OBS ? `<p><em>${PrintReport.escapeHtml(h.OBS)}</em></p>` : ''}
             `,
           })}

@@ -153,12 +153,16 @@
 }
 
 .swal2-popup.corte-caja-historial-swal {
-  max-width: min(56rem, 96vw);
+  max-width: min(67.2rem, 96vw);
 }
 
 .corte-caja-historial-table {
   max-height: 22rem;
   overflow: auto;
+}
+
+.corte-caja-historial-table .table {
+  font-size: 90%;
 }
 
 .corte-caja-hist-docs-scroll {

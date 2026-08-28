@@ -197,18 +197,18 @@ const MenuFavoritos = {
                 <div class="asistente-tab-panel" data-asist-panel="documentos" role="tabpanel" hidden>
                   <div class="row g-2 align-items-end">
                     <div class="col-5">
-                      <label class="form-label small mb-0" for="asist-coddoc">Serie (CODDOC)</label>
-                      <input type="text" id="asist-coddoc" class="form-control form-control-sm" placeholder="Ej. FAC" autocomplete="off">
+                      <label class="form-label small mb-0" for="asist-coddoc">Serie (CODDOC / FEL)</label>
+                      <input type="text" id="asist-coddoc" class="form-control form-control-sm" placeholder="Ej. FAC o serie FEL" autocomplete="off">
                     </div>
                     <div class="col-4">
-                      <label class="form-label small mb-0" for="asist-corr">Correlativo</label>
-                      <input type="number" step="1" min="1" id="asist-corr" class="form-control form-control-sm" placeholder="0">
+                      <label class="form-label small mb-0" for="asist-corr">Correlativo / FEL nº</label>
+                      <input type="text" id="asist-corr" class="form-control form-control-sm" placeholder="0" autocomplete="off">
                     </div>
                     <div class="col-3">
                       <button type="button" class="btn btn-sm btn-primary w-100" id="asist-doc-buscar">Buscar</button>
                     </div>
                     <div class="col-12">
-                      <div id="asist-doc-result" class="asistente-doc-result small text-muted">Ingrese serie y correlativo para consultar.</div>
+                      <div id="asist-doc-result" class="asistente-doc-result small text-muted">Indique serie interna o FEL y el número para consultar.</div>
                     </div>
                   </div>
                 </div>
@@ -331,20 +331,19 @@ const MenuFavoritos = {
     let lastDoc = null;
     const runBuscar = async () => {
       const coddoc = String(popup.querySelector('#asist-coddoc')?.value || '').trim();
-      const corrRaw = popup.querySelector('#asist-corr')?.value;
-      const correlativo = parseInt(corrRaw, 10);
+      const corrRaw = String(popup.querySelector('#asist-corr')?.value || '').trim();
       lastDoc = null;
       if (!coddoc) {
         if (resultEl) {
           resultEl.className = 'asistente-doc-result small text-danger';
-          resultEl.textContent = 'Indique la serie interna (CODDOC).';
+          resultEl.textContent = 'Indique la serie interna (CODDOC) o la serie FEL.';
         }
         return;
       }
-      if (!Number.isFinite(correlativo) || correlativo < 0) {
+      if (!corrRaw) {
         if (resultEl) {
           resultEl.className = 'asistente-doc-result small text-danger';
-          resultEl.textContent = 'Indique un correlativo válido.';
+          resultEl.textContent = 'Indique el correlativo o el número FEL.';
         }
         return;
       }
@@ -362,15 +361,20 @@ const MenuFavoritos = {
       if (buscarBtn) buscarBtn.disabled = true;
       try {
         const url =
-          `/api/documentos/resumen/${encodeURIComponent(coddoc)}/${encodeURIComponent(correlativo)}` +
+          `/api/documentos/resumen/${encodeURIComponent(coddoc)}/${encodeURIComponent(corrRaw)}` +
           `?empnit=${encodeURIComponent(F.getEmpNit())}&_=${Date.now()}`;
         const data = await F.fetchJson(url, { cache: 'no-store' });
         lastDoc = data;
+        const felTxt =
+          data.FEL_SERIE || data.FEL_NUMERO
+            ? `<div>SAT/FEL: <strong>${this.escapeHtml([data.FEL_SERIE, data.FEL_NUMERO].filter(Boolean).join('-'))}</strong></div>`
+            : '';
         if (resultEl) {
           resultEl.className = 'asistente-doc-result small';
           resultEl.innerHTML = `
             <div class="asistente-doc-ok">
               <div><strong>${this.escapeHtml(data.CODDOC)} #${this.escapeHtml(data.CORRELATIVO)}</strong></div>
+              ${felTxt}
               <div>Fecha: <strong>${this.escapeHtml(this.formatFechaDoc(data.FECHA))}</strong></div>
               <div>NIT: <strong>${this.escapeHtml(data.DOC_NIT || '—')}</strong></div>
               <div>Cliente: <strong>${this.escapeHtml(data.DOC_NOMCLIE || '—')}</strong></div>
@@ -628,7 +632,7 @@ const FavoritosFab = {
   SIZE: 56,
   WIDTH_FALLBACK: 56,
   MARGIN: 8,
-  BOTTOM_DEFAULT: 20, // ~1.25rem
+  TOP_DEFAULT: 20, // ~1.25rem desde el borde superior
   DRAG_THRESHOLD: 6,
 
   el() {
@@ -669,11 +673,10 @@ const FavoritosFab = {
 
   defaultPos() {
     const w = window.innerWidth || 360;
-    const h = window.innerHeight || 640;
     const size = this.measure();
     return {
       left: Math.max(this.MARGIN, (w - size.w) / 2),
-      top: Math.max(this.MARGIN, h - this.BOTTOM_DEFAULT - size.h),
+      top: Math.max(this.MARGIN, this.TOP_DEFAULT),
     };
   },
 

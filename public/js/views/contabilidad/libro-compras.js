@@ -49,16 +49,19 @@ const LibroComprasView = {
   tableColumns: [
     { key: 'LINEA', label: 'No.', align: 'center' },
     { key: 'FEL_FECHA', label: 'Fecha', type: 'date' },
-    { key: 'TIPODOC', label: 'Tipo' },
     { key: 'FEL_SERIE', label: 'Serie' },
     { key: 'FEL_NUMERO', label: 'Número' },
+    { key: 'TIPODOC', label: 'Tipo' },
     { key: 'DOC_NIT', label: 'NIT' },
     { key: 'DOC_NOMCLIE', label: 'Nombre proveedor', cellClass: 'libro-compras-col-nombre' },
-    { key: 'TOTALEXENTO', label: 'Exentas', type: 'money' },
-    { key: 'TOTALSINIVA', label: 'Gravadas', type: 'money' },
-    { key: 'TOTALIVA', label: 'IVA', type: 'money' },
     { key: 'TOTAL', label: 'Total', type: 'money' },
+    { key: 'TOTAL_SERVICIOS', label: 'Total servicios', type: 'money' },
+    { key: 'TOTALEXENTO', label: 'Exentas', type: 'money' },
+    { key: 'TOTALSINIVA', label: 'Base del total', type: 'money' },
+    { key: 'BASE_SERVICIOS', label: 'Base servicios', type: 'money' },
+    { key: 'TOTALIVA', label: 'IVA', type: 'money' },
     { key: 'ANULADO', label: 'Anulado', type: 'anulado' },
+    { key: 'IMPRIMIR', label: '', type: 'print', align: 'center' },
   ],
 
   defaultPeriod() {
@@ -100,6 +103,12 @@ const LibroComprasView = {
       return row.ANULADO
         ? '<span class="badge text-bg-danger">Sí</span>'
         : '<span class="text-muted">No</span>';
+    }
+    if (col.type === 'print') {
+      const hasDoc = row.CODDOC != null && row.CORRELATIVO != null && row.CORRELATIVO !== '';
+      return `<button type="button" class="btn btn-sm btn-outline-secondary libro-compras-print-btn" data-action="imprimir-doc" title="Imprimir documento" ${hasDoc ? '' : 'disabled'}>
+        <i class="fa-solid fa-print"></i>
+      </button>`;
     }
     const value = row[key];
     if (value === null || value === undefined || value === '') return '—';
@@ -158,10 +167,12 @@ const LibroComprasView = {
     const rows = filtering ? this.filteredRows() : this._rows;
     if (!filtering && this._totals) return this._totals;
     const t = {
+      total: 0,
+      totalServicios: 0,
       exento: 0,
       gravado: 0,
+      baseServicios: 0,
       iva: 0,
-      total: 0,
       documentos: rows.length,
       anulados: 0,
       compras: 0,
@@ -177,10 +188,12 @@ const LibroComprasView = {
       if (tipo === 'COP') t.peqContribuyente += 1;
       else if (tipo === 'DVP' || r.ES_NOTA_CREDITO) t.notasCredito += 1;
       else t.compras += 1;
+      t.total += Number(r.TOTAL) || 0;
+      t.totalServicios += Number(r.TOTAL_SERVICIOS) || 0;
       t.exento += Number(r.TOTALEXENTO) || 0;
       t.gravado += Number(r.TOTALSINIVA) || 0;
+      t.baseServicios += Number(r.BASE_SERVICIOS) || 0;
       t.iva += Number(r.TOTALIVA) || 0;
-      t.total += Number(r.TOTAL) || 0;
     });
     return t;
   },
@@ -256,7 +269,7 @@ const LibroComprasView = {
             return `<td class="${`${align}${extra}`.trim()}">${this.formatCell(row, col)}</td>`;
           })
           .join('');
-        return `<tr class="${cls}">${cells}</tr>`;
+        return `<tr class="${cls}" data-coddoc="${this.escapeHtml(row.CODDOC || '')}" data-correlativo="${this.escapeHtml(row.CORRELATIVO ?? '')}" data-desdoc="${this.escapeHtml(row.DESDOC || '')}" data-tipodoc="${this.escapeHtml(row.TIPODOC || '')}">${cells}</tr>`;
       })
       .join('');
   },
@@ -272,10 +285,13 @@ const LibroComprasView = {
       <tfoot>
         <tr>
           <td colspan="7" class="text-end">${label}</td>
+          <td class="text-end libro-compras-money">${this.escapeHtml(this.formatMoney(t.total))}</td>
+          <td class="text-end libro-compras-money">${this.escapeHtml(this.formatMoney(t.totalServicios))}</td>
           <td class="text-end libro-compras-money">${this.escapeHtml(this.formatMoney(t.exento))}</td>
           <td class="text-end libro-compras-money">${this.escapeHtml(this.formatMoney(t.gravado))}</td>
+          <td class="text-end libro-compras-money">${this.escapeHtml(this.formatMoney(t.baseServicios))}</td>
           <td class="text-end libro-compras-money">${this.escapeHtml(this.formatMoney(t.iva))}</td>
-          <td class="text-end libro-compras-money">${this.escapeHtml(this.formatMoney(t.total))}</td>
+          <td></td>
           <td></td>
         </tr>
       </tfoot>
@@ -345,7 +361,42 @@ const LibroComprasView = {
     this._container?.querySelector('#btn-libro-compras-export')?.addEventListener('click', () => {
       this.exportExcel().catch((err) => F.toast(err.message, 'error'));
     });
+    this.bindPrintActions();
     LibroContableCommon.bindSearch(this._container, 'libro-compras', this);
+  },
+
+  bindPrintActions() {
+    if (this._printBound || !this._container) return;
+    this._printBound = true;
+    this._container.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action="imprimir-doc"]');
+      if (!btn || !this._container.contains(btn)) return;
+      const tr = btn.closest('tr');
+      if (!tr) return;
+      const coddoc = tr.dataset.coddoc;
+      const correlativo = tr.dataset.correlativo;
+      const row = {
+        CODDOC: coddoc,
+        CORRELATIVO: correlativo,
+        DESDOC: tr.dataset.desdoc,
+        TIPODOC: tr.dataset.tipodoc,
+      };
+      this.imprimirDocumento(coddoc, correlativo, row).catch((err) =>
+        F.alert('Error', err.message || 'No se pudo imprimir', 'error')
+      );
+    });
+  },
+
+  async imprimirDocumento(coddoc, correlativo, row) {
+    if (!coddoc || correlativo === undefined || correlativo === null || correlativo === '') {
+      F.toast('Documento incompleto para imprimir', 'warning');
+      return;
+    }
+    if (typeof DocOpciones === 'undefined') {
+      F.toast('Componente DocOpciones no disponible', 'error');
+      return;
+    }
+    await DocOpciones.imprimir(coddoc, correlativo, row);
   },
 
   async exportExcel() {
@@ -380,10 +431,11 @@ const LibroComprasView = {
       <p><strong>Período:</strong> ${PrintReport.escapeHtml(this.mesLabel(this._mes))} ${PrintReport.escapeHtml(String(this._anio))}</p>
       <p class="meta">Documentos contables COM, COP y DVP · Serie/Número/Fecha FEL</p>
     `;
-    const headCells = this.tableColumns.map((c) => `<th>${PrintReport.escapeHtml(c.label)}</th>`).join('');
+    const printCols = this.tableColumns.filter((c) => c.type !== 'print');
+    const headCells = printCols.map((c) => `<th>${PrintReport.escapeHtml(c.label)}</th>`).join('');
     const bodyRows = this._rows
       .map((row) => {
-        const cells = this.tableColumns
+        const cells = printCols
           .map((col) => {
             const align = col.type === 'money' ? ' class="text-end"' : '';
             let val;
@@ -401,10 +453,12 @@ const LibroComprasView = {
     const footerRow = this._rows.length
       ? `<tr class="totals">
           <td colspan="7" class="text-end">Totales (sin anulados)</td>
+          <td class="text-end">${PrintReport.escapeHtml(this.formatMoney(t.total))}</td>
+          <td class="text-end">${PrintReport.escapeHtml(this.formatMoney(t.totalServicios))}</td>
           <td class="text-end">${PrintReport.escapeHtml(this.formatMoney(t.exento))}</td>
           <td class="text-end">${PrintReport.escapeHtml(this.formatMoney(t.gravado))}</td>
+          <td class="text-end">${PrintReport.escapeHtml(this.formatMoney(t.baseServicios))}</td>
           <td class="text-end">${PrintReport.escapeHtml(this.formatMoney(t.iva))}</td>
-          <td class="text-end">${PrintReport.escapeHtml(this.formatMoney(t.total))}</td>
           <td></td>
         </tr>`
       : '';
@@ -412,7 +466,7 @@ const LibroComprasView = {
       ${PrintReport.reportHeaderHtml({ title, subtitleHtml })}
       <table>
         <thead><tr>${headCells}</tr></thead>
-        <tbody>${bodyRows || `<tr><td colspan="${this.tableColumns.length}">Sin registros</td></tr>`}</tbody>
+        <tbody>${bodyRows || `<tr><td colspan="${printCols.length}">Sin registros</td></tr>`}</tbody>
         ${footerRow ? `<tfoot>${footerRow}</tfoot>` : ''}
       </table>
     `;
@@ -432,6 +486,7 @@ const LibroComprasView = {
     this._rows = [];
     this._totals = null;
     this._filterQuery = '';
+    this._printBound = false;
     container.classList.remove('align-items-center', 'justify-content-center');
     container.classList.add('align-items-stretch', 'justify-content-start');
     container.innerHTML = this.render();

@@ -3,6 +3,7 @@ const { isDbConfigured } = require('../config/database');
 const {
   parseMesAnio,
   listVales,
+  listValesPendientesEmpleado,
   listEmpleadosActivosCombo,
   listCajasAbiertas,
   listCuentasBancariasCombo,
@@ -77,6 +78,33 @@ router.get('/', async (req, res) => {
     });
   } catch (err) {
     console.warn('[API GET /nomina/vales]', err.message);
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+/** Vales pendientes (saldo > 0) de un empleado — deducciones de nómina. */
+router.get('/pendientes/:codemp', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });
+  const empnit = requireEmpNit(req, res);
+  if (!empnit) return;
+  const codemp = parseInt(req.params.codemp, 10);
+  if (!Number.isFinite(codemp) || codemp <= 0) {
+    return res.status(400).json({ error: 'CODEMP inválido' });
+  }
+  try {
+    const pool = await req.app.locals.getDbPool();
+    const rows = await listValesPendientesEmpleado(pool, empnit, codemp);
+    const totalCuota = rows.reduce((s, r) => s + (Number(r.CUOTA_SUGERIDA) || 0), 0);
+    const totalSaldo = rows.reduce((s, r) => s + (Number(r.SALDO) || 0), 0);
+    res.json({
+      CODEMP: codemp,
+      rows,
+      totalCuota: Math.round(totalCuota * 1000) / 1000,
+      totalSaldo: Math.round(totalSaldo * 1000) / 1000,
+    });
+  } catch (err) {
+    console.warn('[API GET /nomina/vales/pendientes/:codemp]', err.message);
     res.status(err.statusCode || 500).json({ error: err.message });
   }
 });

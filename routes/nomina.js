@@ -21,6 +21,11 @@ const {
   cerrarPlanilla,
   deletePlanilla,
 } = require('../lib/nomina-planillas');
+const {
+  getDeduccionesModalData,
+  confirmarAbonoValeNomina,
+  deleteDeduccionLinea,
+} = require('../lib/nomina-deducciones');
 
 const router = express.Router();
 
@@ -287,6 +292,77 @@ function planillaRouter(tipo) {
       res.status(code).json({ error: err.message });
     }
   });
+
+  if (tipo === 'INTERNA') {
+    r.get('/:id/lineas/:detalleId/deducciones', async (req, res) => {
+      res.setHeader('Cache-Control', 'no-store');
+      if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });
+      const empnit = requireEmpNit(req, res);
+      if (!empnit) return;
+      const planillaId = parseId(req.params.id);
+      const detalleId = parseId(req.params.detalleId);
+      const codemp = parseId(req.query.codemp);
+      if (!planillaId || !detalleId || !codemp) {
+        return res.status(400).json({ error: 'Parámetros inválidos' });
+      }
+      try {
+        const pool = await req.app.locals.getDbPool();
+        const data = await getDeduccionesModalData(pool, empnit, planillaId, detalleId, codemp);
+        res.json(data);
+      } catch (err) {
+        const code = err.statusCode || 500;
+        if (code >= 500) console.warn('[API GET deducciones nomina]', err.message);
+        res.status(code).json({ error: err.message });
+      }
+    });
+
+    r.post('/:id/lineas/:detalleId/deducciones/vale-abono', async (req, res) => {
+      if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });
+      const empnit = requireEmpNit(req, res);
+      if (!empnit) return;
+      const planillaId = parseId(req.params.id);
+      const detalleId = parseId(req.params.detalleId);
+      if (!planillaId || !detalleId) return res.status(400).json({ error: 'ID inválido' });
+      try {
+        const pool = await req.app.locals.getDbPool();
+        const data = await confirmarAbonoValeNomina(
+          pool,
+          empnit,
+          planillaId,
+          detalleId,
+          req.body || {}
+        );
+        const planilla = await loadPlanilla(pool, empnit, planillaId);
+        res.status(201).json({ ...data, planilla });
+      } catch (err) {
+        const code = err.statusCode || 500;
+        if (code >= 500) console.warn('[API POST deducciones vale-abono]', err.message);
+        res.status(code).json({ error: err.message });
+      }
+    });
+
+    r.delete('/:id/lineas/:detalleId/deducciones/:deduccionId', async (req, res) => {
+      if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });
+      const empnit = requireEmpNit(req, res);
+      if (!empnit) return;
+      const planillaId = parseId(req.params.id);
+      const detalleId = parseId(req.params.detalleId);
+      const deduccionId = parseId(req.params.deduccionId);
+      if (!planillaId || !detalleId || !deduccionId) {
+        return res.status(400).json({ error: 'ID inválido' });
+      }
+      try {
+        const pool = await req.app.locals.getDbPool();
+        const data = await deleteDeduccionLinea(pool, empnit, planillaId, detalleId, deduccionId);
+        const planilla = await loadPlanilla(pool, empnit, planillaId);
+        res.json({ ...data, planilla });
+      } catch (err) {
+        const code = err.statusCode || 500;
+        if (code >= 500) console.warn('[API DELETE deduccion nomina]', err.message);
+        res.status(code).json({ error: err.message });
+      }
+    });
+  }
 
   r.post('/:id/recalcular', async (req, res) => {
     if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });

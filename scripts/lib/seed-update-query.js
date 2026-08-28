@@ -8,11 +8,12 @@ const sql = require('mssql');
 function readSqlFromScripts(sqlFileName) {
   const filePath = path.join(__dirname, '..', 'sql', sqlFileName);
   let qry = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').trim();
-  return qry
+  qry = qry
     .split(/\nGO\s*\n/i)
     .map((s) => s.trim())
     .filter(Boolean)
     .join('\n');
+  return qry.replace(/\nGO\s*$/i, '').trim();
 }
 
 /**

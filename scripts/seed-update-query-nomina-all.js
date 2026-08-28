@@ -10,6 +10,8 @@ const SCRIPTS = [
   'seed-update-query-control-asistencia.js',
   'seed-update-query-nomina-vales-empleados.js',
   'seed-update-query-nomina-vales-cuotas.js',
+  'seed-update-query-nomina-vales-codcaja-null.js',
+  'seed-update-query-nomina-detalle-deducciones.js',
 ];
 
 for (const name of SCRIPTS) {

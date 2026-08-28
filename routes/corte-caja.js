@@ -632,6 +632,140 @@ router.get('/cortes/:id', async (req, res) => {
   }
 });
 
+/** Retiros a banco (DOCUMENTOS_BANCO) marcados en el corte. */
+router.get('/cortes/:id/retiros', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });
+  const empnit = requireEmpNit(req, res);
+  if (!empnit) return;
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'ID de corte inválido' });
+  }
+
+  try {
+    const pool = await req.app.locals.getDbPool();
+    const corteRes = await pool
+      .request()
+      .input('EMPNIT', sql.VarChar, empnit)
+      .input('ID', sql.Int, id)
+      .query(`
+        SELECT c.ID, c.CORRELATIVO, c.CODCAJA, c.FECHA, c.HORA, c.MINUTO,
+               ISNULL(cj.DESCAJA, '') AS DESCAJA
+        FROM dbo.CORTES c
+        LEFT JOIN dbo.Cajas cj ON cj.EMPNIT = c.EMPNIT AND cj.CODCAJA = c.CODCAJA
+        WHERE c.EMPNIT = @EMPNIT AND c.ID = @ID
+      `);
+    const corte = corteRes.recordset[0];
+    if (!corte) return res.status(404).json({ error: 'Corte no encontrado' });
+
+    const nocorte = Number(corte.CORRELATIVO);
+    const retirosRes = await pool
+      .request()
+      .input('EMPNIT', sql.VarChar, empnit)
+      .input('NOCORTE', sql.Int, nocorte)
+      .query(`
+        SELECT
+          b.ID, b.FECHA, b.CODDOC, b.CORRELATIVO, b.CODCUENTA,
+          ISNULL(b.NODOCUMENTO, '') AS NODOCUMENTO,
+          ISNULL(b.DESCRIPCION, '') AS DESCRIPCION,
+          ISNULL(b.IMPORTE, 0) AS IMPORTE,
+          ISNULL(c.NOCUENTA, '') AS NOCUENTA,
+          ISNULL(bn.DESBANCO, '') AS DESBANCO
+        FROM dbo.DOCUMENTOS_BANCO b
+        LEFT JOIN dbo.CUENTAS c ON c.EMPNIT = b.EMPNIT AND c.CODCUENTA = b.CODCUENTA
+        LEFT JOIN dbo.BANCOS bn ON bn.CODBANCO = c.CODBANCO
+        WHERE b.EMPNIT = @EMPNIT
+          AND ISNULL(b.NOCORTE, 0) = @NOCORTE
+          AND b.TIPO = 'E'
+          AND UPPER(LTRIM(RTRIM(ISNULL(b.CATEGORIA, '')))) = 'DEPOSITO'
+        ORDER BY b.FECHA, b.ID
+      `);
+
+    const rows = (retirosRes.recordset || []).map((r) => ({
+      ID: r.ID,
+      FECHA: fechaIsoFromRow({ FECHA: r.FECHA }) || null,
+      CODDOC: r.CODDOC,
+      CORRELATIVO: r.CORRELATIVO,
+      CODCUENTA: r.CODCUENTA,
+      NODOCUMENTO: String(r.NODOCUMENTO || '').trim(),
+      DESCRIPCION: String(r.DESCRIPCION || '').trim(),
+      IMPORTE: roundMoney(Math.abs(Number(r.IMPORTE) || 0)),
+      NOCUENTA: String(r.NOCUENTA || '').trim(),
+      DESBANCO: String(r.DESBANCO || '').trim(),
+    }));
+
+    res.json({
+      corte: {
+        ID: corte.ID,
+        CORRELATIVO: corte.CORRELATIVO,
+        CODCAJA: corte.CODCAJA,
+        DESCAJA: corte.DESCAJA || '',
+        FECHA: fechaIsoFromRow({ FECHA: corte.FECHA }) || null,
+        HORA: corte.HORA,
+        MINUTO: corte.MINUTO,
+      },
+      rows,
+    });
+  } catch (err) {
+    console.warn('[API GET /corte-caja/cortes/:id/retiros]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Actualiza solo el número de boleta (NODOCUMENTO) de un retiro a banco. */
+router.patch('/documentos-banco/:id/boleta', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });
+  const empnit = requireEmpNit(req, res);
+  if (!empnit) return;
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'ID de movimiento inválido' });
+  }
+  const nodocumento = String(req.body?.NODOCUMENTO ?? req.body?.nodocumento ?? '').trim();
+  if (nodocumento.length > 50) {
+    return res.status(400).json({ error: 'Número de boleta demasiado largo (máx. 50)' });
+  }
+
+  try {
+    const pool = await req.app.locals.getDbPool();
+    const check = await pool
+      .request()
+      .input('EMPNIT', sql.VarChar, empnit)
+      .input('ID', sql.Int, id)
+      .query(`
+        SELECT ID, TIPO, CATEGORIA, NODOCUMENTO
+        FROM dbo.DOCUMENTOS_BANCO
+        WHERE EMPNIT = @EMPNIT AND ID = @ID
+      `);
+    const row = check.recordset[0];
+    if (!row) return res.status(404).json({ error: 'Movimiento de banco no encontrado' });
+    if (String(row.TIPO || '').trim().toUpperCase() !== 'E') {
+      return res.status(400).json({ error: 'Solo se puede actualizar boleta en retiros de efectivo' });
+    }
+    if (String(row.CATEGORIA || '').trim().toUpperCase() !== 'DEPOSITO') {
+      return res.status(400).json({ error: 'El movimiento no es un retiro a banco (depósito)' });
+    }
+
+    await pool
+      .request()
+      .input('EMPNIT', sql.VarChar, empnit)
+      .input('ID', sql.Int, id)
+      .input('NODOCUMENTO', sql.VarChar, nodocumento || null)
+      .query(`
+        UPDATE dbo.DOCUMENTOS_BANCO
+        SET NODOCUMENTO = @NODOCUMENTO
+        WHERE EMPNIT = @EMPNIT AND ID = @ID
+      `);
+
+    res.json({ ok: true, ID: id, NODOCUMENTO: nodocumento });
+  } catch (err) {
+    console.warn('[API PATCH /corte-caja/documentos-banco/:id/boleta]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/:codcaja/resumen', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!isDbConfigured()) return res.status(503).json({ error: 'Base de datos no configurada' });

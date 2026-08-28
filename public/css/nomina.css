@@ -51,6 +51,30 @@
   font-size: 0.75rem;
 }
 
+.nomina-lines-table .nomina-money.flex-grow-1 {
+  min-width: 5.5rem;
+}
+
+.nomina-lines-table .nomina-line-deducciones {
+  flex: 0 0 auto;
+}
+
+.nomina-ded-modal-panels .nomina-ded-panel {
+  min-height: 16rem;
+}
+
+.nomina-ded-vales-table,
+.nomina-ded-cargos-table {
+  max-height: min(22rem, 45vh);
+  overflow: auto;
+}
+
+.nomina-ded-vales-table thead th,
+.nomina-ded-cargos-table thead th {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
 .nomina-line-excluded {
   opacity: 0.55;
 }

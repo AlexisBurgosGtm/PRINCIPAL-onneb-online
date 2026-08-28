@@ -453,7 +453,7 @@
   outline: none;
 }
 
-/* FAB Asistente — centro inferior por defecto; arrastrable */
+/* FAB Asistente — centro superior por defecto; arrastrable */
 #btn-favoritos-fab.btn-favoritos-fab {
   position: fixed;
   z-index: 9997;

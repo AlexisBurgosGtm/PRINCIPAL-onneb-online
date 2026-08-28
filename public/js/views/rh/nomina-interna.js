@@ -7,6 +7,7 @@ const NominaInternaView = createNominaDocView({
   showIgssExport: false,
   showPatronal: false,
   requireSalarioBase: true,
+  layoutInterna: true,
   periodoOptions: [
     { value: 'MENSUAL', label: 'MENSUAL (mes)' },
     { value: 'QUINCENAL', label: 'QUINCENAL (15 dias)' },

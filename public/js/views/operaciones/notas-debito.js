@@ -907,8 +907,8 @@ const NotasDebitoView = {
 
   renderListTableHtml() {
     return `
-      <div class="card shadow-sm">
-        <div class="table-responsive">
+      <div class="card fac-list-table-card shadow-sm">
+        <div class="table-responsive fac-list-table-scroll">
           <table class="table table-sm table-hover table-striped mb-0">
             <thead class="table-light sticky-top">
               <tr>
@@ -1242,6 +1242,7 @@ const NotasDebitoView = {
             title: 'Nota de crédito proveedor',
             subtitleHtml: `
               <p><strong>${this.escapeHtml(h.CODDOC)} #${this.escapeHtml(h.CORRELATIVO)}</strong> · ${this.escapeHtml(this.formatFechaPedido(h))} · ${PrintReport.escapeHtml(h.USUARIO || '')}</p>
+              ${h.FEL_SERIE || h.FEL_NUMERO ? `<p><strong>Serie:</strong> ${PrintReport.escapeHtml(h.FEL_SERIE || '')} · <strong>Número:</strong> ${PrintReport.escapeHtml(h.FEL_NUMERO || '')}</p>` : ''}
               <p><strong>Compra referencia:</strong> ${PrintReport.escapeHtml(h.SERIEFAC || '')}-${PrintReport.escapeHtml(h.NOFAC || '')}</p>
               <p><strong>Proveedor:</strong> ${PrintReport.escapeHtml(h.DOC_NOMCLIE || h.PROV_EMPRESA || h.PROV_RAZON || '—')}</p>
               ${h.OBS ? `<p><em>${PrintReport.escapeHtml(h.OBS)}</em></p>` : ''}

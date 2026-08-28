@@ -846,6 +846,7 @@ const FacturacionView = {
     await this.maybeAutoFraccionarTrasFinalizar(coddocFinalizar, correlativoFinalizar, tipodocFinalizar);
     if (typeof DocOpciones !== 'undefined' && DocOpciones.maybeImprimirTicketTrasFinalizar) {
       await DocOpciones.maybeImprimirTicketTrasFinalizar({
+        tipodoc: tipodocFinalizar,
         alreadyPrintedSistema: !!(cert && cert.printedSistema),
         onImprimir: () => this.imprimirPedido(coddocFinalizar, correlativoFinalizar),
       });

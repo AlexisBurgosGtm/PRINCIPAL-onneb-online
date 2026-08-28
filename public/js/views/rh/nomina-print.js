@@ -63,6 +63,10 @@ const NominaPrint = {
   },
 
   async printReciboEmpleado({ header, line, titulo }) {
+    const salarioQ =
+      line.SALARIOQ != null
+        ? Number(line.SALARIOQ)
+        : (Number(line.SALARIO_BASE) || 0) * ((Number(line.DIAS_LABORADOS) || 0) / 30);
     const bodyHtml = `
       ${PrintReport.reportHeaderHtml({
         title: titulo || 'Recibo de nómina',
@@ -73,16 +77,17 @@ const NominaPrint = {
         `,
       })}
       <table class="table table-sm">
-        <tr><td>Salario base</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.SALARIO_BASE))}</td></tr>
+        <tr><td>Salario</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.SALARIO_BASE))}</td></tr>
+        <tr><td>Días</td><td class="text-end">${PrintReport.escapeHtml(line.DIAS_LABORADOS ?? '—')}</td></tr>
+        <tr><td>SalarioQ ((Salario/30)×Días)</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(salarioQ))}</td></tr>
         <tr><td>Departamento</td><td class="text-end">${PrintReport.escapeHtml(line.DEPARTAMENTO || '—')}</td></tr>
         <tr><td>Bono ley</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.BONO_LEY ?? line.BONIFICACION))}</td></tr>
         <tr><td>Bono adicional</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.BONO_ADICIONAL))}</td></tr>
-        <tr><td>Comisión</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.COMISION))}</td></tr>
         <tr><td>Otros ingresos</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.OTROS_INGRESOS))}</td></tr>
         <tr class="fw-semibold"><td>Total ingresos</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.TOTAL_INGRESOS))}</td></tr>
+        <tr><td>Deducciones</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.OTRAS_DEDUCCIONES))}</td></tr>
         <tr><td>IGSS laboral</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.IGSS_LABORAL))}</td></tr>
         <tr><td>ISR</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.ISR))}</td></tr>
-        <tr><td>Otras deducciones</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.OTRAS_DEDUCCIONES))}</td></tr>
         <tr class="fw-semibold"><td>Total deducciones</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.TOTAL_DEDUCCIONES))}</td></tr>
         <tr class="fw-bold"><td>Neto a pagar</td><td class="text-end">${PrintReport.escapeHtml(this.formatMoney(line.NETO_PAGAR))}</td></tr>
       </table>`;

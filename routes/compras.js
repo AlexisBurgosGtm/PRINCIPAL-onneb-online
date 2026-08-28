@@ -300,7 +300,7 @@ async function cargarCostosDesdeLinea(pool, empnit, coddoc, correlativo, lineId)
     throw err;
   }
   const line = lineRes.recordset[0];
-  if (String(line.TIPOPROD || '').trim().toUpperCase() === 'S') {
+  if (String(line.CODPROD || '').trim().toUpperCase().startsWith('PSE')) {
     const err = new Error('Producto sin existencia (PSE): no actualiza catálogo');
     err.statusCode = 400;
     throw err;
@@ -844,7 +844,7 @@ router.post('/compras/:coddoc/:correlativo/lineas', async (req, res) => {
     if (isPse) {
       desprod = desprodPse;
       medidaLinea = 'UNIDAD';
-      tipoprod = 'S';
+      tipoprod = 'P';
       tipoprecio = 'P';
       costo = importePse;
       precio = importePse;

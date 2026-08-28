@@ -93,6 +93,9 @@ router.get('/', async (req, res) => {
     const data = await listMovimientosBanco(pool, sql, empnit, {
       q: req.query.q,
       limit: req.query.limit,
+      codcuenta: req.query.codcuenta,
+      mes: req.query.mes,
+      anio: req.query.anio,
     });
     res.json({ ...data, empnit });
   } catch (err) {

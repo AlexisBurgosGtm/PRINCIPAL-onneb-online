@@ -715,6 +715,9 @@
     promociones: 'Promociones',
     'auditoria-cajas': 'Auditoría Cajas',
     'reportes-ventas': 'Reportes de Ventas',
+    'reportes-clientes': 'Reportes Clientes',
+    'reportes-productos': 'Reportes de Productos',
+    'reportes-marcas': 'Reportes de Marcas',
     'subir-catalogo': 'Subir catálogo',
     'descargar-catalogo': 'Descargar Catálogo',
     'traslados-en-transito': 'Traslados en tránsito',
@@ -876,6 +879,12 @@
       AuditoriaCajasView.load(mainContent);
     } else if (key === 'reportes-ventas' && typeof ReportesVentasView !== 'undefined') {
       ReportesVentasView.load(mainContent);
+    } else if (key === 'reportes-clientes' && typeof ReportesClientesView !== 'undefined') {
+      ReportesClientesView.load(mainContent);
+    } else if (key === 'reportes-productos' && typeof ReportesProductosView !== 'undefined') {
+      ReportesProductosView.load(mainContent);
+    } else if (key === 'reportes-marcas' && typeof ReportesMarcasView !== 'undefined') {
+      ReportesMarcasView.load(mainContent);
     } else if (key === 'subir-catalogo' && typeof SubirCatalogoView !== 'undefined') {
       SubirCatalogoView.load(mainContent);
     } else if (key === 'descargar-catalogo' && typeof DescargarCatalogoView !== 'undefined') {

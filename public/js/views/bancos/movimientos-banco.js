@@ -6,6 +6,9 @@ const MovimientosBancoView = {
   _rows: [],
   _cuentas: [],
   _filterQuery: '',
+  _filterCuenta: '',
+  _filterMes: null,
+  _filterAnio: null,
   _mode: 'list', // list | form | detail
   _editId: null,
   _detail: null,
@@ -169,14 +172,63 @@ const MovimientosBancoView = {
     }
   },
 
+  felSatLabel(row) {
+    const tipodoc = String(row?.TIPODOC || '').trim().toUpperCase();
+    const esCompra = tipodoc === 'COM' || tipodoc === 'COP';
+    const serie = esCompra
+      ? String(row?.SAT_SERIE || row?.SERIEFAC || '').trim()
+      : String(row?.SAT_SERIE || row?.FEL_SERIE || '').trim();
+    const numero = esCompra
+      ? String(row?.SAT_NUMERO || row?.NOFAC || '').trim()
+      : String(row?.SAT_NUMERO || row?.FEL_NUMERO || '').trim();
+    if (!serie && !numero) return '—';
+    return [serie, numero].filter(Boolean).join('-');
+  },
+
   async fetchList() {
     const params = { _: String(Date.now()) };
     if (this._filterQuery.trim()) params.q = this._filterQuery.trim();
+    if (this._filterCuenta) params.codcuenta = String(this._filterCuenta);
+    if (this._filterMes) params.mes = String(this._filterMes);
+    if (this._filterAnio) params.anio = String(this._filterAnio);
     const data = await F.fetchJson(this.apiListUrl(params), { cache: 'no-store' });
     this._rows = data.rows || [];
     return this._rows;
   },
 
+  filtroCuentaOptionsHtml() {
+    const opts = [`<option value=""${this._filterCuenta ? '' : ' selected'}>Todas</option>`];
+    for (const c of this._cuentas || []) {
+      const id = String(c.CODCUENTA ?? '');
+      const banco = String(c.DESBANCO || '').trim();
+      const cuenta = String(c.NOCUENTA || '').trim();
+      const label = [banco, cuenta].filter(Boolean).join(' · ') || `Cuenta ${id}`;
+      const sel = String(this._filterCuenta) === id ? ' selected' : '';
+      opts.push(`<option value="${this.escapeHtml(id)}"${sel}>${this.escapeHtml(label)}</option>`);
+    }
+    return opts.join('');
+  },
+
+  filtroPeriodoHtml() {
+    const period =
+      this._filterMes && this._filterAnio
+        ? { mes: this._filterMes, anio: this._filterAnio }
+        : typeof LibroContableCommon !== 'undefined'
+          ? LibroContableCommon.defaultPeriod()
+          : { mes: new Date().getMonth() + 1, anio: new Date().getFullYear() };
+    if (!this._filterMes) this._filterMes = period.mes;
+    if (!this._filterAnio) this._filterAnio = period.anio;
+    if (typeof LibroContableCommon !== 'undefined') {
+      return LibroContableCommon.periodSelectsHtml('mb-filtro', this._filterMes, this._filterAnio);
+    }
+    return `
+      <select class="form-select form-select-sm" id="mb-filtro-mes" style="min-width:7rem">
+        <option value="${this._filterMes}">${this._filterMes}</option>
+      </select>
+      <select class="form-select form-select-sm" id="mb-filtro-anio" style="min-width:5.5rem">
+        <option value="${this._filterAnio}">${this._filterAnio}</option>
+      </select>`;
+  },
   async fetchDetail(id) {
     const emp = F.getEmpNit();
     return F.fetchJson(
@@ -257,6 +309,15 @@ const MovimientosBancoView = {
     return `
       <div class="card shadow-sm mb-3">
         <div class="card-body py-2">
+          <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
+            <div>
+              <label class="form-label small mb-0" for="mb-filtro-cuenta">Cuenta bancaria</label>
+              <select class="form-select form-select-sm" id="mb-filtro-cuenta" style="min-width:14rem">
+                ${this.filtroCuentaOptionsHtml()}
+              </select>
+            </div>
+            ${this.filtroPeriodoHtml()}
+          </div>
           <div class="d-flex flex-wrap align-items-center gap-2">
             <div class="input-group input-group-sm flex-grow-1" style="min-width:12rem">
               <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
@@ -311,6 +372,7 @@ const MovimientosBancoView = {
           : '';
         return `<tr>
           <td class="fw-semibold text-nowrap small">${this.escapeHtml(a.CODDOC_FAC)} #${this.escapeHtml(a.CORRELATIVO_FAC)}</td>
+          <td class="small text-nowrap">${this.escapeHtml(this.felSatLabel(a))}</td>
           <td class="small">${this.escapeHtml(a.DOC_NOMCLIE || '—')}</td>
           <td class="text-end small text-muted">${this.escapeHtml(this.formatMoney(a.DOC_SALDO))}</td>
           <td class="text-end" style="min-width:6rem">${montoInput}</td>
@@ -324,6 +386,7 @@ const MovimientosBancoView = {
           <thead class="table-light sticky-top">
             <tr>
               <th>Documento</th>
+              <th>SAT</th>
               <th>Nombre</th>
               <th class="text-end">Saldo</th>
               <th class="text-end">Abono</th>
@@ -333,7 +396,7 @@ const MovimientosBancoView = {
           <tbody>${body}</tbody>
           <tfoot class="table-light">
             <tr>
-              <td colspan="3" class="text-end fw-semibold small">Total</td>
+              <td colspan="4" class="text-end fw-semibold small">Total</td>
               <td class="text-end fw-bold text-danger">${this.escapeHtml(this.formatMoney(this.abonosSum()))}</td>
               <td></td>
             </tr>
@@ -345,7 +408,7 @@ const MovimientosBancoView = {
   renderPendingPickerHtml() {
     const label = this._form?.TIPO === 'S' ? 'compras CXP' : 'facturas CXC';
     const body = !this._pendingDocs.length
-      ? `<tr><td colspan="5" class="text-center text-muted py-4">Sin ${label} con saldo</td></tr>`
+      ? `<tr><td colspan="6" class="text-center text-muted py-4">Sin ${label} con saldo</td></tr>`
       : this._pendingDocs
           .map((d) => {
             const key = `${d.CODDOC}|${d.CORRELATIVO}`;
@@ -354,6 +417,7 @@ const MovimientosBancoView = {
             );
             return `<tr>
               <td class="fw-semibold text-nowrap small">${this.escapeHtml(d.CODDOC)} #${this.escapeHtml(d.CORRELATIVO)}</td>
+              <td class="small text-nowrap">${this.escapeHtml(this.felSatLabel(d))}</td>
               <td class="small">${this.escapeHtml(d.DOC_NOMCLIE || d.NEGOCIO || '—')}</td>
               <td class="text-nowrap small">${this.escapeHtml(this.formatFecha(d.FECHA))}</td>
               <td class="text-end fw-semibold small text-primary">${this.escapeHtml(this.formatMoney(d.DOC_SALDO))}</td>
@@ -372,7 +436,7 @@ const MovimientosBancoView = {
           <i class="fa-solid fa-list me-1"></i>Lista ${this.escapeHtml(label)} pendientes
         </div>
         <div class="input-group input-group-sm mb-2">
-          <input type="search" class="form-control" id="mb-pending-search" placeholder="Buscar cliente, doc, NIT…"
+          <input type="search" class="form-control" id="mb-pending-search" placeholder="Buscar cliente, doc, NIT, FEL…"
             value="${this.escapeHtml(this._pendingQuery)}" autocomplete="off">
           <button type="button" class="btn btn-outline-secondary" id="mb-pending-btn">Buscar</button>
         </div>
@@ -381,6 +445,7 @@ const MovimientosBancoView = {
             <thead class="table-light sticky-top">
               <tr>
                 <th>Documento</th>
+                <th>SAT</th>
                 <th>Nombre</th>
                 <th>Fecha</th>
                 <th class="text-end">Saldo</th>
@@ -810,8 +875,15 @@ const MovimientosBancoView = {
     this._form.abonos.push({
       CODDOC_FAC: doc.CODDOC,
       CORRELATIVO_FAC: doc.CORRELATIVO,
+      TIPODOC: doc.TIPODOC || null,
       DOC_NOMCLIE: doc.DOC_NOMCLIE || doc.NEGOCIO || '',
       DOC_SALDO: doc.DOC_SALDO,
+      FEL_SERIE: doc.FEL_SERIE || null,
+      FEL_NUMERO: doc.FEL_NUMERO || null,
+      SERIEFAC: doc.SERIEFAC || null,
+      NOFAC: doc.NOFAC || null,
+      SAT_SERIE: doc.SAT_SERIE || null,
+      SAT_NUMERO: doc.SAT_NUMERO || null,
       ABONO: Number(doc.DOC_SALDO) || 0,
     });
     this.syncImporteFromAbonos();
@@ -872,20 +944,37 @@ const MovimientosBancoView = {
   },
 
   bindEvents() {
+    const reloadList = async () => {
+      try {
+        await this.fetchList();
+        this._container.innerHTML = this.renderShell();
+        this.bindEvents();
+      } catch (err) {
+        F.toast(err.message || 'Error al buscar', 'error');
+      }
+    };
+
     const search = this._container?.querySelector('#mb-search');
     let t = null;
     search?.addEventListener('input', () => {
       this._filterQuery = search.value;
       clearTimeout(t);
-      t = setTimeout(async () => {
-        try {
-          await this.fetchList();
-          this._container.innerHTML = this.renderShell();
-          this.bindEvents();
-        } catch (err) {
-          F.toast(err.message || 'Error al buscar', 'error');
-        }
+      t = setTimeout(() => {
+        reloadList().catch(() => {});
       }, 350);
+    });
+
+    this._container?.querySelector('#mb-filtro-cuenta')?.addEventListener('change', (e) => {
+      this._filterCuenta = String(e.target.value || '').trim();
+      reloadList().catch(() => {});
+    });
+    this._container?.querySelector('#mb-filtro-mes')?.addEventListener('change', (e) => {
+      this._filterMes = Number(e.target.value) || this._filterMes;
+      reloadList().catch(() => {});
+    });
+    this._container?.querySelector('#mb-filtro-anio')?.addEventListener('change', (e) => {
+      this._filterAnio = Number(e.target.value) || this._filterAnio;
+      reloadList().catch(() => {});
     });
 
     this._container?.querySelector('#mb-btn-nueva-entrada')?.addEventListener('click', () => {
@@ -985,6 +1074,14 @@ const MovimientosBancoView = {
 
     container.innerHTML = `<div class="text-center text-muted py-4 w-100"><i class="fa-solid fa-spinner fa-spin me-2"></i>Cargando movimientos…</div>`;
     try {
+      if (!this._filterMes || !this._filterAnio) {
+        const period =
+          typeof LibroContableCommon !== 'undefined'
+            ? LibroContableCommon.defaultPeriod()
+            : { mes: new Date().getMonth() + 1, anio: new Date().getFullYear() };
+        this._filterMes = period.mes;
+        this._filterAnio = period.anio;
+      }
       await Promise.all([this.fetchCuentas(), this.fetchList()]);
       container.innerHTML = this.renderShell();
       this.bindEvents();

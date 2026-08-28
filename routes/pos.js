@@ -882,7 +882,7 @@ router.post('/pedidos/:coddoc/:correlativo/lineas', async (req, res) => {
       }
       desprod = desprodPse;
       medidaLinea = 'UNIDAD';
-      tipoprod = 'S';
+      tipoprod = 'P';
       tipoprecio = 'P';
       costo = roundMoney(customCosto);
       precio = roundMoney(customPrecio);

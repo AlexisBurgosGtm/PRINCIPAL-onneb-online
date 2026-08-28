@@ -319,26 +319,44 @@ router.get('/resumen/:coddoc/:correlativo', async (req, res) => {
   if (!empnit) return;
 
   const coddoc = String(req.params.coddoc || '').trim();
-  const correlativo = parseCorrelativo(req.params.correlativo);
-  if (!coddoc || correlativo === null) {
-    return res.status(400).json({ error: 'Indique CODDOC (serie interna) y correlativo válidos' });
+  const correlativoRaw = String(req.params.correlativo || '').trim();
+  const correlativo = parseCorrelativo(correlativoRaw);
+  if (!coddoc || !correlativoRaw) {
+    return res.status(400).json({ error: 'Indique serie (CODDOC o FEL) y número/correlativo válidos' });
   }
 
   try {
     const pool = await req.app.locals.getDbPool();
-    const result = await pool
+    const request = pool
       .request()
       .input('EMPNIT', sql.VarChar, empnit)
       .input('CODDOC', sql.VarChar, coddoc)
-      .input('CORRELATIVO', sql.Decimal(18, 0), correlativo)
-      .query(`
+      .input('FEL_SERIE', sql.VarChar, coddoc)
+      .input('FEL_NUMERO', sql.VarChar, correlativoRaw)
+      .input('CORRELATIVO', sql.Decimal(18, 0), correlativo);
+    const result = await request.query(`
         SELECT TOP 1
           d.CODDOC, d.CORRELATIVO, d.FECHA, d.STATUS,
           ISNULL(d.DOC_NIT, '') AS DOC_NIT,
           ISNULL(d.DOC_NOMCLIE, '') AS DOC_NOMCLIE,
-          ISNULL(d.TOTALPRECIO, 0) AS TOTALPRECIO
+          ISNULL(d.TOTALPRECIO, 0) AS TOTALPRECIO,
+          ISNULL(d.FEL_SERIE, '') AS FEL_SERIE,
+          ISNULL(d.FEL_NUMERO, '') AS FEL_NUMERO
         FROM dbo.DOCUMENTOS d
-        WHERE d.EMPNIT = @EMPNIT AND d.CODDOC = @CODDOC AND d.CORRELATIVO = @CORRELATIVO
+        WHERE d.EMPNIT = @EMPNIT
+          AND (
+            (@CORRELATIVO IS NOT NULL AND d.CODDOC = @CODDOC AND d.CORRELATIVO = @CORRELATIVO)
+            OR (
+              LTRIM(RTRIM(ISNULL(d.FEL_SERIE, ''))) = @FEL_SERIE
+              AND LTRIM(RTRIM(ISNULL(d.FEL_NUMERO, ''))) = @FEL_NUMERO
+            )
+          )
+        ORDER BY
+          CASE
+            WHEN @CORRELATIVO IS NOT NULL AND d.CODDOC = @CODDOC AND d.CORRELATIVO = @CORRELATIVO THEN 0
+            ELSE 1
+          END,
+          d.FECHA DESC
       `);
     if (!result.recordset.length) {
       return res.status(404).json({ error: 'Documento no encontrado' });
@@ -352,6 +370,8 @@ router.get('/resumen/:coddoc/:correlativo', async (req, res) => {
       DOC_NOMCLIE: String(row.DOC_NOMCLIE || '').trim() || null,
       TOTALPRECIO: Number(row.TOTALPRECIO) || 0,
       STATUS: row.STATUS ?? null,
+      FEL_SERIE: String(row.FEL_SERIE || '').trim() || null,
+      FEL_NUMERO: String(row.FEL_NUMERO || '').trim() || null,
     });
   } catch (err) {
     console.warn('[API GET /documentos/resumen]', err.message);

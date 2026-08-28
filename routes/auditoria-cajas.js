@@ -440,6 +440,13 @@ router.get('/cortes/:id', async (req, res) => {
       const totalRetirosGrupo = roundMoney(retirosRows.reduce((s, r) => s + r.IMPORTE, 0));
       print.resumen.totalValesCaja = totalValesCaja;
       print.resumen.totalRetiros = totalRetirosGrupo;
+      // CORTES no guarda EFECTIVOINICIAL; se reconstruye del arqueo del corte.
+      print.resumen.efectivoInicial = roundMoney(
+        Number(print.resumen.efectivoEsperado || 0) -
+          Number(print.resumen.fpEfectivo || 0) +
+          totalRetirosGrupo +
+          totalValesCaja
+      );
     }
 
     const productosRes = await pool

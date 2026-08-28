@@ -366,14 +366,20 @@ const CorteCajaView = {
         <td class="text-end">${this.escapeHtml(this.formatMoney(c.TOTALVENTA))}</td>
         <td class="small">${this.escapeHtml(c.USUARIO || '—')}</td>
         <td class="text-end text-nowrap">
-          <button type="button" class="btn btn-sm btn-outline-secondary me-1 btn-corte-hist-print"
-            data-id="${this.escapeHtml(c.ID)}" title="Reimprimir corte">
-            <i class="fa-solid fa-print"></i>
-          </button>
-          <button type="button" class="btn btn-sm btn-outline-primary btn-corte-hist-docs"
-            data-id="${this.escapeHtml(c.ID)}" title="Documentos del corte">
-            <i class="fa-solid fa-list"></i>
-          </button>
+          <div class="d-flex flex-wrap gap-1 justify-content-end">
+            <button type="button" class="btn btn-sm btn-outline-secondary btn-corte-hist-print"
+              data-id="${this.escapeHtml(c.ID)}" title="Reimprimir corte">
+              <i class="fa-solid fa-print"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary btn-corte-hist-docs"
+              data-id="${this.escapeHtml(c.ID)}" title="Documentos del corte">
+              <i class="fa-solid fa-list"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary btn-corte-hist-boleta"
+              data-id="${this.escapeHtml(c.ID)}" title="Actualizar boleta de retiro">
+              <i class="fa-solid fa-pen-to-square me-1"></i>Actualizar Boleta de Retiro
+            </button>
+          </div>
         </td>
       </tr>`
       )
@@ -495,6 +501,108 @@ const CorteCajaView = {
     return F.fetchJson(this.apiUrl(`/cortes/${encodeURIComponent(id)}`));
   },
 
+  async fetchHistorialRetiros(id) {
+    return F.fetchJson(this.apiUrl(`/cortes/${encodeURIComponent(id)}/retiros`));
+  },
+
+  async patchRetiroBoleta(movId, nodocumento) {
+    return F.fetchJson(this.apiUrl(`/documentos-banco/${encodeURIComponent(movId)}/boleta`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ NODOCUMENTO: nodocumento }),
+    });
+  },
+
+  renderHistorialRetirosHtml(corte, rows) {
+    if (!rows.length) {
+      return `
+        <p class="small text-muted mb-0">
+          Corte #${this.escapeHtml(corte?.CORRELATIVO)} no tiene retiros a banco registrados.
+        </p>`;
+    }
+    const body = rows
+      .map((r) => {
+        const banco = [r.DESBANCO, r.NOCUENTA].filter(Boolean).join(' · ') || '—';
+        return `
+        <tr data-retiro-id="${this.escapeHtml(r.ID)}">
+          <td class="text-nowrap small">${this.escapeHtml(this.formatFecha(r.FECHA))}</td>
+          <td class="small text-nowrap">${this.escapeHtml(r.CODDOC || '—')} #${this.escapeHtml(r.CORRELATIVO ?? '—')}</td>
+          <td class="small">${this.escapeHtml(banco)}</td>
+          <td class="text-end small">${this.escapeHtml(this.formatMoney(r.IMPORTE))}</td>
+          <td style="min-width:9rem">
+            <input type="text" class="form-control form-control-sm corte-hist-boleta-input"
+              maxlength="50" value="${this.escapeHtml(r.NODOCUMENTO || '')}"
+              placeholder="No. boleta" autocomplete="off">
+          </td>
+          <td class="text-end text-nowrap">
+            <button type="button" class="btn btn-sm btn-primary corte-hist-boleta-save"
+              data-id="${this.escapeHtml(r.ID)}">
+              Guardar
+            </button>
+            <span class="corte-hist-boleta-status small ms-1" aria-live="polite"></span>
+          </td>
+        </tr>`;
+      })
+      .join('');
+    return `
+      <div class="corte-caja-hist-boletas text-start">
+        <p class="small text-muted mb-2">
+          Corte #${this.escapeHtml(corte?.CORRELATIVO)} · ${this.escapeHtml(corte?.DESCAJA || '')}
+          · Solo se actualiza el número de boleta del movimiento de banco.
+        </p>
+        <div class="table-responsive" style="max-height: 22rem;">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th>Fecha</th>
+                <th>Documento</th>
+                <th>Banco / Cuenta</th>
+                <th class="text-end">Importe</th>
+                <th>No. boleta</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+      </div>`;
+  },
+
+  bindHistorialBoletaActions(root) {
+    root?.querySelectorAll('.corte-hist-boleta-save').forEach((btn) => {
+      btn.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        const tr = btn.closest('tr');
+        const input = tr?.querySelector('.corte-hist-boleta-input');
+        const statusEl = tr?.querySelector('.corte-hist-boleta-status');
+        if (!id || !input) return;
+        if (statusEl) {
+          statusEl.textContent = '';
+          statusEl.className = 'corte-hist-boleta-status small ms-1';
+        }
+        try {
+          btn.disabled = true;
+          input.disabled = true;
+          await this.patchRetiroBoleta(id, String(input.value || '').trim());
+          if (statusEl) {
+            statusEl.textContent = 'Actualizado';
+            statusEl.className = 'corte-hist-boleta-status small text-success ms-1';
+          }
+        } catch (err) {
+          if (statusEl) {
+            statusEl.textContent = err.message || 'Error al guardar';
+            statusEl.className = 'corte-hist-boleta-status small text-danger ms-1';
+          }
+        } finally {
+          btn.disabled = false;
+          input.disabled = false;
+        }
+      });
+    });
+  },
+
   bindHistorialRowActions(ctx) {
     const root = ctx.getRoot?.() || document;
     root.querySelectorAll('.btn-corte-hist-print').forEach((btn) => {
@@ -543,6 +651,22 @@ const CorteCajaView = {
         }
       });
     });
+    root.querySelectorAll('.btn-corte-hist-boleta').forEach((btn) => {
+      btn.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        if (!id || !ctx.showBoletas) return;
+        try {
+          btn.disabled = true;
+          await ctx.showBoletas(id);
+        } catch (err) {
+          F.toast(err.message || 'No se pudieron cargar los retiros', 'error');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
   },
 
   async showHistorialModal() {
@@ -577,6 +701,27 @@ const CorteCajaView = {
       });
     };
 
+    const showBoletas = async (id) => {
+      const host = hostEl();
+      if (!host) return;
+      host.innerHTML = `
+        <div class="text-center text-muted py-4">
+          <i class="fa-solid fa-spinner fa-spin me-1"></i>Cargando retiros…
+        </div>`;
+      const data = await this.fetchHistorialRetiros(id);
+      host.innerHTML = `
+        <div class="mb-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="corte-hist-back">
+            <i class="fa-solid fa-arrow-left me-1"></i>Volver al historial
+          </button>
+        </div>
+        ${this.renderHistorialRetirosHtml(data.corte, data.rows || [])}`;
+      document.getElementById('corte-hist-back')?.addEventListener('click', () => {
+        paintList();
+      });
+      this.bindHistorialBoletaActions(host);
+    };
+
     const paintList = async () => {
       const host = hostEl();
       if (!host) return;
@@ -597,7 +742,7 @@ const CorteCajaView = {
         if (mesEl) mesEl.value = String(mes);
         if (anioEl) anioEl.value = String(anio);
         tbody.innerHTML = this.renderHistorialRows(data.rows || []);
-        this.bindHistorialRowActions({ getRoot: () => host, showDocs });
+        this.bindHistorialRowActions({ getRoot: () => host, showDocs, showBoletas });
       } catch (err) {
         tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">${this.escapeHtml(
           err.message || 'Error al cargar'
@@ -608,7 +753,7 @@ const CorteCajaView = {
     await Swal.fire({
       ...(typeof CatalogosUI !== 'undefined' ? CatalogosUI.modalBase() : {}),
       title: 'Historial de cortes',
-      width: '56rem',
+      width: '67.2rem',
       html: '<div id="corte-hist-host" class="corte-caja-historial-modal text-start"></div>',
       confirmButtonText:
         typeof CatalogosUI !== 'undefined' ? CatalogosUI.aceptarButtonHtml('Cerrar') : 'Cerrar',

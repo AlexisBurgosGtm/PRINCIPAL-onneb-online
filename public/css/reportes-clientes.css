@@ -1,0 +1,250 @@
+/* Reportes → Reportes Clientes */
+.main-content > .repcli-wrap {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  align-self: stretch;
+}
+
+.repcli-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.repcli-toolbar {
+  flex-shrink: 0;
+}
+
+.repcli-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.repcli-clients-col {
+  flex: 0 0 320px;
+  min-width: 280px;
+  max-width: 360px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.repcli-clients-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.repcli-sort-row {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+  flex-shrink: 0;
+}
+
+.repcli-sort-btn {
+  flex: 1;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.35rem;
+}
+
+.repcli-sort-btn.active {
+  font-weight: 650;
+}
+
+.repcli-search {
+  flex-shrink: 0;
+  max-width: 100%;
+  margin-bottom: 0.45rem;
+}
+
+.repcli-clients-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.repcli-client-card {
+  cursor: pointer;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.45rem;
+  background: var(--bs-body-bg, #fff);
+  transition: border-color 0.15s, background 0.15s, transform 0.12s;
+  position: relative;
+}
+
+.repcli-client-card:hover {
+  border-color: rgba(37, 99, 235, 0.45);
+  transform: translateY(-1px);
+}
+
+.repcli-client-card.active {
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.06);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+}
+
+.repcli-card-rank {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+
+.repcli-card-rank.rank-1 {
+  background: linear-gradient(135deg, #fcd34d, #f59e0b);
+  color: #78350f;
+}
+
+.repcli-card-rank.rank-2 {
+  background: linear-gradient(135deg, #e5e7eb, #9ca3af);
+  color: #374151;
+}
+
+.repcli-card-rank.rank-3 {
+  background: linear-gradient(135deg, #fdba74, #ea580c);
+  color: #7c2d12;
+}
+
+.repcli-client-nit {
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+
+.repcli-client-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.25;
+  padding-right: 2rem;
+}
+
+.repcli-client-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.repcli-client-share {
+  font-size: 0.7rem;
+  color: #2563eb;
+  font-weight: 600;
+  margin-top: 0.2rem;
+}
+
+.repcli-detail-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 1rem;
+}
+
+.repcli-detail-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.repcli-hero {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 55%, #60a5fa 100%);
+  color: #fff;
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+}
+
+.repcli-hero-title {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 0.15rem;
+}
+
+.repcli-hero-nit {
+  font-size: 0.75rem;
+  opacity: 0.88;
+  font-family: ui-monospace, monospace;
+}
+
+.repcli-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
+.repcli-kpi {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 0.35rem;
+  padding: 0.4rem 0.5rem;
+  backdrop-filter: blur(4px);
+}
+
+.repcli-kpi-label {
+  font-size: 0.65rem;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.repcli-kpi-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.repcli-chart-wrap {
+  position: relative;
+  height: 240px;
+}
+
+.repcli-table {
+  font-size: 0.78rem;
+}
+
+.repcli-table th,
+.repcli-table td {
+  padding: 0.28rem 0.45rem;
+  vertical-align: middle;
+}
+
+.repcli-empty {
+  color: #6b7280;
+  font-size: 0.85rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.repcli-prod-bar {
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  margin-top: 0.15rem;
+  overflow: hidden;
+}
+
+.repcli-prod-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #60a5fa);
+  border-radius: 2px;
+}

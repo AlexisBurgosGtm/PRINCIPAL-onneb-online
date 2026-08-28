@@ -871,6 +871,7 @@ const NotasAbonoView = {
     await this.showList();
     if (typeof DocOpciones !== 'undefined' && DocOpciones.maybeImprimirTicketTrasFinalizar) {
       await DocOpciones.maybeImprimirTicketTrasFinalizar({
+        tipodoc: 'FNA',
         onImprimir: () => this.imprimirPedido(coddocFinalizar, correlativoFinalizar),
       });
     }
@@ -918,8 +919,8 @@ const NotasAbonoView = {
 
   renderListTableHtml() {
     return `
-      <div class="card shadow-sm">
-        <div class="table-responsive">
+      <div class="card fac-list-table-card shadow-sm">
+        <div class="table-responsive fac-list-table-scroll">
           <table class="table table-sm table-hover table-striped mb-0">
             <thead class="table-light sticky-top">
               <tr>
@@ -1265,6 +1266,7 @@ const NotasAbonoView = {
             title: 'Nota de abono',
             subtitleHtml: `
               <p><strong>${this.escapeHtml(h.CODDOC)} #${this.escapeHtml(h.CORRELATIVO)}</strong> · ${this.escapeHtml(this.formatFechaPedido(h))} · ${PrintReport.escapeHtml(h.USUARIO || '')}</p>
+              ${h.FEL_SERIE || h.FEL_NUMERO ? `<p><strong>Serie:</strong> ${PrintReport.escapeHtml(h.FEL_SERIE || '')} · <strong>Número:</strong> ${PrintReport.escapeHtml(h.FEL_NUMERO || '')}</p>` : ''}
               <p><strong>Factura referencia:</strong> ${PrintReport.escapeHtml(h.SERIEFAC || '')}-${PrintReport.escapeHtml(h.NOFAC || '')}</p>
               <p><strong>Cliente:</strong> ${PrintReport.escapeHtml(h.DOC_NOMCLIE || h.CLI_NOMBRE || '—')}</p>
               ${h.OBS ? `<p><em>${PrintReport.escapeHtml(h.OBS)}</em></p>` : ''}

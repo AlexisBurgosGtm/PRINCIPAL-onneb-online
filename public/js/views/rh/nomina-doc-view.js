@@ -32,6 +32,12 @@ function createNominaDocView(cfg) {
       return n.toLocaleString('es-GT', { style: 'currency', currency: 'GTQ' });
     },
 
+    moneyPrefix() {
+      const sample = this.formatMoney(0);
+      const m = sample.match(/^[^\d\-−]+/);
+      return m ? m[0].trim() : 'Q';
+    },
+
     statusLabel(code) {
       const map = { B: 'Borrador', C: 'Calculada', F: 'Cerrada', A: 'Anulada' };
       return map[String(code || '').toUpperCase()] || code || '—';
@@ -201,6 +207,57 @@ function createNominaDocView(cfg) {
       const incluido = String(line.INCLUIDO || 'SI').toUpperCase() === 'SI';
       const rowClass = incluido ? '' : 'nomina-line-excluded';
       const dis = editable ? '' : 'disabled';
+      const salarioQ =
+        line.SALARIOQ != null
+          ? Number(line.SALARIOQ)
+          : (Number(line.SALARIO_BASE) || 0) * ((Number(line.DIAS_LABORADOS) || 0) / 30);
+      if (cfg.layoutInterna) {
+        return `
+        <tr class="nomina-line-row ${rowClass}" data-detalle-id="${this.escapeHtml(line.ID)}"
+          data-codemp="${this.escapeHtml(line.CODEMPLEADO)}">
+          <td>
+            <input type="checkbox" class="form-check-input nomina-inc-check" ${incluido ? 'checked' : ''} ${dis}
+              data-field="INCLUIDO" title="Incluir en planilla">
+          </td>
+          <td>${this.escapeHtml(line.CODEMPLEADO)}</td>
+          <td>
+            <div>${this.escapeHtml(line.NOMEMPLEADO)}</div>
+            ${
+              line.DEPARTAMENTO
+                ? `<div class="small text-muted">${this.escapeHtml(line.DEPARTAMENTO)}</div>`
+                : ''
+            }
+          </td>
+          <td class="nomina-num">${editable ? this.moneyInput(`${id('sal')}-${line.ID}`, line.SALARIO_BASE) : this.escapeHtml(this.formatMoney(line.SALARIO_BASE))}</td>
+          <td class="nomina-num">${editable ? `<input type="number" step="0.01" class="form-control form-control-sm" data-field="DIAS_LABORADOS" value="${Number(line.DIAS_LABORADOS ?? 30)}" ${dis}>` : this.escapeHtml(line.DIAS_LABORADOS)}</td>
+          <td class="nomina-num text-end fw-semibold nomina-salarioq">${this.escapeHtml(this.formatMoney(salarioQ))}</td>
+          <td class="nomina-num">${editable ? this.moneyInput(`${id('bonley')}-${line.ID}`, line.BONO_LEY ?? line.BONIFICACION) : this.escapeHtml(this.formatMoney(line.BONO_LEY ?? line.BONIFICACION))}</td>
+          <td class="nomina-num">${editable ? this.moneyInput(`${id('bonadi')}-${line.ID}`, line.BONO_ADICIONAL) : this.escapeHtml(this.formatMoney(line.BONO_ADICIONAL))}</td>
+          <td class="nomina-num">${editable ? this.moneyInput(`${id('oing')}-${line.ID}`, line.OTROS_INGRESOS) : this.escapeHtml(this.formatMoney(line.OTROS_INGRESOS))}</td>
+          <td class="nomina-num">
+            <div class="d-flex align-items-center gap-1">
+              ${editable ? this.moneyInput(`${id('oded')}-${line.ID}`, line.OTRAS_DEDUCCIONES, { extraClass: 'flex-grow-1' }) : `<span class="text-end flex-grow-1">${this.escapeHtml(this.formatMoney(line.OTRAS_DEDUCCIONES))}</span>`}
+              <button type="button" class="btn btn-sm btn-outline-secondary nomina-line-deducciones" title="Ver deducciones (vales)">
+                <i class="fa-solid fa-list"></i>
+              </button>
+            </div>
+          </td>
+          <td class="nomina-num text-end">${this.escapeHtml(this.formatMoney(line.IGSS_LABORAL))}</td>
+          <td class="nomina-num text-end fw-semibold">${this.escapeHtml(this.formatMoney(line.NETO_PAGAR))}</td>
+          <td class="text-nowrap">
+            <button type="button" class="btn btn-sm btn-outline-secondary nomina-line-print" title="Recibo">
+              <i class="fa-solid fa-receipt"></i>
+            </button>
+            ${
+              editable
+                ? `<button type="button" class="btn btn-sm btn-outline-primary nomina-line-save" title="Guardar línea">
+              <i class="fa-solid fa-floppy-disk"></i>
+            </button>`
+                : ''
+            }
+          </td>
+        </tr>`;
+      }
       return `
         <tr class="nomina-line-row ${rowClass}" data-detalle-id="${this.escapeHtml(line.ID)}">
           <td>
@@ -250,6 +307,17 @@ function createNominaDocView(cfg) {
       const lines = this.filteredLines();
       const editable = this.docEditable({ header: h });
       const rows = lines.map((l) => this.renderLineRow(l)).join('');
+      const headInterna = `
+                <th>Inc.</th><th>Cód.</th><th>Empleado</th>
+                <th>Salario</th><th>Días</th><th>SalarioQ</th>
+                <th>Bono ley</th><th>Bono adic.</th><th>Otros ing.</th>
+                <th>Deducciones</th><th>IGSS lab.</th><th>Neto</th><th></th>`;
+      const headDefault = `
+                <th>Inc.</th><th>Cód.</th><th>Empleado</th><th>Salario</th><th>Días</th>
+                <th>Bono ley</th><th>Bono adic.</th><th>Com.</th><th>Otros ing.</th><th>IGSS lab.</th>
+                ${cfg.showPatronal ? '<th>IGSS pat.</th>' : ''}
+                <th>Deducc.</th><th>Neto</th><th></th>`;
+      const colSpan = cfg.layoutInterna ? 13 : cfg.showPatronal ? 14 : 13;
       return `
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
           <input type="search" class="form-control form-control-sm" style="max-width:280px" id="${id('line-search')}"
@@ -275,14 +343,9 @@ function createNominaDocView(cfg) {
         <div class="table-responsive nomina-lines-table">
           <table class="table table-sm table-bordered align-middle mb-0">
             <thead>
-              <tr>
-                <th>Inc.</th><th>Cód.</th><th>Empleado</th><th>Salario</th><th>Días</th>
-                <th>Bono ley</th><th>Bono adic.</th><th>Com.</th><th>Otros ing.</th><th>IGSS lab.</th>
-                ${cfg.showPatronal ? '<th>IGSS pat.</th>' : ''}
-                <th>Deducc.</th><th>Neto</th><th></th>
-              </tr>
+              <tr>${cfg.layoutInterna ? headInterna : headDefault}</tr>
             </thead>
-            <tbody>${rows || `<tr><td colspan="${cfg.showPatronal ? 14 : 13}" class="text-center text-muted py-3">Sin líneas</td></tr>`}</tbody>
+            <tbody>${rows || `<tr><td colspan="${colSpan}" class="text-center text-muted py-3">Sin líneas</td></tr>`}</tbody>
           </table>
         </div>`;
     },
@@ -340,19 +403,327 @@ function createNominaDocView(cfg) {
         return el ? Number(el.value) || 0 : 0;
       };
       const inclCheck = rowEl.querySelector('.nomina-inc-check');
-      return {
-        detalleId,
-        payload: {
-          SALARIO_BASE: getNum(`#${id('sal')}-${detalleId}`),
-          DIAS_LABORADOS: getNum('[data-field="DIAS_LABORADOS"]'),
-          BONO_LEY: getNum(`#${id('bonley')}-${detalleId}`),
-          BONO_ADICIONAL: getNum(`#${id('bonadi')}-${detalleId}`),
-          BONIFICACION: getNum(`#${id('bonley')}-${detalleId}`),
-          COMISION: getNum(`#${id('com')}-${detalleId}`),
-          OTROS_INGRESOS: getNum(`#${id('oing')}-${detalleId}`),
-          INCLUIDO: inclCheck?.checked ? 'SI' : 'NO',
-        },
+      const payload = {
+        SALARIO_BASE: getNum(`#${id('sal')}-${detalleId}`),
+        DIAS_LABORADOS: getNum('[data-field="DIAS_LABORADOS"]'),
+        BONO_LEY: getNum(`#${id('bonley')}-${detalleId}`),
+        BONO_ADICIONAL: getNum(`#${id('bonadi')}-${detalleId}`),
+        BONIFICACION: getNum(`#${id('bonley')}-${detalleId}`),
+        OTROS_INGRESOS: getNum(`#${id('oing')}-${detalleId}`),
+        INCLUIDO: inclCheck?.checked ? 'SI' : 'NO',
       };
+      if (cfg.layoutInterna) {
+        payload.OTRAS_DEDUCCIONES = getNum(`#${id('oded')}-${detalleId}`);
+        payload.COMISION = 0;
+      } else {
+        payload.COMISION = getNum(`#${id('com')}-${detalleId}`);
+      }
+      return { detalleId, payload };
+    },
+
+    todayIso() {
+      const d = new Date();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${d.getFullYear()}-${m}-${day}`;
+    },
+
+    deduccionesApiUrl(planillaId, detalleId, suffix = '', extraParams = {}) {
+      const params = new URLSearchParams({ empnit: F.getEmpNit() || '' });
+      Object.entries(extraParams).forEach(([key, value]) => {
+        if (value != null && value !== '') params.set(key, String(value));
+      });
+      return `${cfg.apiPath}/${planillaId}/lineas/${detalleId}/deducciones${suffix}?${params}`;
+    },
+
+    async fetchDeduccionesData(line) {
+      const planillaId = this._doc?.header?.ID;
+      const detalleId = line?.ID;
+      if (!planillaId || !detalleId) return null;
+      return F.fetchJson(
+        this.deduccionesApiUrl(planillaId, detalleId, '', {
+          codemp: line.CODEMPLEADO,
+          _: Date.now(),
+        }),
+        { cache: 'no-store' }
+      );
+    },
+
+    renderDeduccionesValesHtml(vales, deducciones, editable) {
+      if (!vales?.length) {
+        return '<p class="text-muted small mb-0 text-center py-3">Sin vales pendientes.</p>';
+      }
+      const abonados = new Set(
+        (deducciones || [])
+          .filter((d) => d.TIPO === 'VALE' && d.PAGO_VALE_ID && d.REF_ID)
+          .map((d) => Number(d.REF_ID))
+      );
+      const trs = vales
+        .map((r) => {
+          const yaAbonado = abonados.has(Number(r.ID));
+          const btn = editable
+            ? `<button type="button" class="btn btn-sm btn-outline-primary nomina-ded-abonar-vale" data-vale-id="${this.escapeHtml(r.ID)}" data-cuota="${Number(r.CUOTA_SUGERIDA) || 0}" data-saldo="${Number(r.SALDO) || 0}" ${yaAbonado ? 'disabled title="Ya abonado en esta nómina"' : ''}>
+                <i class="fa-solid fa-hand-holding-dollar"></i>
+              </button>`
+            : '';
+          return `<tr>
+            <td class="small">#${this.escapeHtml(r.ID)}</td>
+            <td class="text-nowrap small">${this.escapeHtml(r.FECHA ? String(r.FECHA).slice(0, 10) : '—')}</td>
+            <td class="small">${this.escapeHtml(r.DESCRIPCION || '—')}</td>
+            <td class="text-end small">${this.escapeHtml(this.formatMoney(r.SALDO))}</td>
+            <td class="text-end small fw-semibold">${this.escapeHtml(this.formatMoney(r.CUOTA_SUGERIDA))}</td>
+            <td class="text-center">${btn}</td>
+          </tr>`;
+        })
+        .join('');
+      return `
+        <div class="table-responsive nomina-ded-vales-table">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th>#</th><th>Fecha</th><th>Descripción</th>
+                <th class="text-end">Saldo</th><th class="text-end">Cuota sug.</th><th></th>
+              </tr>
+            </thead>
+            <tbody>${trs}</tbody>
+          </table>
+        </div>`;
+    },
+
+    renderDeduccionesCargosHtml(deducciones, editable) {
+      if (!deducciones?.length) {
+        return '<p class="text-muted small mb-0 text-center py-3">Sin deducciones cargadas.</p>';
+      }
+      const trs = deducciones
+        .map((d) => {
+          const tipoLabel =
+            d.TIPO === 'VALE' ? 'Vale' : d.TIPO === 'MANUAL' ? 'Manual' : this.escapeHtml(d.TIPO || '—');
+          const estado =
+            d.TIPO === 'VALE' && String(d.ABONO_APLICADO || '').toUpperCase() === 'SI'
+              ? '<span class="badge text-bg-success">Abonado</span>'
+              : d.TIPO === 'VALE'
+                ? '<span class="badge text-bg-warning text-dark">Pend. abono</span>'
+                : '<span class="badge text-bg-secondary">Cargo</span>';
+          const delBtn = editable
+            ? `<button type="button" class="btn btn-sm btn-outline-danger nomina-ded-del-cargo" data-ded-id="${this.escapeHtml(d.ID)}" title="Quitar deducción">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>`
+            : '';
+          return `<tr>
+            <td class="small">${tipoLabel}</td>
+            <td class="small">${this.escapeHtml(d.DESCRIPCION || '—')}</td>
+            <td class="text-end small fw-semibold">${this.escapeHtml(this.formatMoney(d.MONTO))}</td>
+            <td class="small">${estado}</td>
+            <td class="text-center">${delBtn}</td>
+          </tr>`;
+        })
+        .join('');
+      return `
+        <div class="table-responsive nomina-ded-cargos-table">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th>Tipo</th><th>Descripción</th><th class="text-end">Monto</th><th>Estado</th><th></th>
+              </tr>
+            </thead>
+            <tbody>${trs}</tbody>
+          </table>
+        </div>`;
+    },
+
+    renderDeduccionesModalHtml(data, editable) {
+      return `
+        <p class="small text-muted mb-2">
+          <strong>${this.escapeHtml(data.detalle?.NOMEMPLEADO || '')}</strong>
+          · Total a descontar: <strong>${this.escapeHtml(this.formatMoney(data.totalCargos))}</strong>
+        </p>
+        <div class="row g-3 nomina-ded-modal-panels">
+          <div class="col-md-6">
+            <div class="nomina-ded-panel border rounded p-2 h-100">
+              <div class="small fw-semibold mb-2">Vales pendientes</div>
+              <div id="nomina-ded-vales-wrap">${this.renderDeduccionesValesHtml(data.vales, data.deducciones, editable)}</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="nomina-ded-panel border rounded p-2 h-100">
+              <div class="small fw-semibold mb-2">Deducciones en nómina</div>
+              <div id="nomina-ded-cargos-wrap">${this.renderDeduccionesCargosHtml(data.deducciones, editable)}</div>
+            </div>
+          </div>
+        </div>`;
+    },
+
+    applyDeduccionesModalHtml(container, data, editable) {
+      if (!container) return;
+      const valesWrap = container.querySelector('#nomina-ded-vales-wrap');
+      const cargosWrap = container.querySelector('#nomina-ded-cargos-wrap');
+      if (valesWrap) {
+        valesWrap.innerHTML = this.renderDeduccionesValesHtml(data.vales, data.deducciones, editable);
+      }
+      if (cargosWrap) {
+        cargosWrap.innerHTML = this.renderDeduccionesCargosHtml(data.deducciones, editable);
+      }
+      const totalEl = container.querySelector('.nomina-ded-total-label');
+      if (totalEl) {
+        totalEl.textContent = this.formatMoney(data.totalCargos);
+      }
+    },
+
+    bindDeduccionesModalEvents(container, line, editable, refreshModal) {
+      if (!container || !editable) return;
+      container.querySelectorAll('.nomina-ded-abonar-vale').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const idVale = btn.dataset.valeId;
+          const saldo = Number(btn.dataset.saldo) || 0;
+          const cuota = Number(btn.dataset.cuota) || 0;
+          await this.showAbonoValeNominaModal(line, { ID: idVale, SALDO: saldo, CUOTA_SUGERIDA: cuota }, refreshModal);
+        });
+      });
+      container.querySelectorAll('.nomina-ded-del-cargo').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const dedId = btn.dataset.dedId;
+          const confirm = await Swal.fire({
+            ...(typeof CatalogosUI !== 'undefined' ? CatalogosUI.modalBase() : {}),
+            icon: 'warning',
+            title: 'Quitar deducción',
+            text: '¿Quitar esta deducción de la nómina?',
+            showCancelButton: true,
+            confirmButtonText:
+              typeof CatalogosUI !== 'undefined' ? CatalogosUI.guardarButtonHtml('Quitar') : 'Quitar',
+            cancelButtonText:
+              typeof CatalogosUI !== 'undefined' ? CatalogosUI.cancelButtonHtml('Cancelar') : 'Cancelar',
+          });
+          if (!confirm.isConfirmed) return;
+          try {
+            const planillaId = this._doc?.header?.ID;
+            const data = await F.fetchJson(this.deduccionesApiUrl(planillaId, line.ID, `/${dedId}`), {
+              method: 'DELETE',
+            });
+            if (data.planilla) this._doc = data.planilla;
+            this.refreshEditorBody();
+            await refreshModal();
+            F.toast('Deducción eliminada', 'success');
+          } catch (err) {
+            F.alert('Error', err.message || 'No se pudo eliminar', 'error');
+          }
+        });
+      });
+    },
+
+    async showAbonoValeNominaModal(line, vale, refreshParent) {
+      const planillaId = this._doc?.header?.ID;
+      const detalleId = line?.ID;
+      const idVale = vale?.ID ?? vale?.id;
+      if (!planillaId || !detalleId || idVale == null) return;
+
+      let data;
+      try {
+        data = await this.fetchDeduccionesData(line);
+      } catch {
+        data = { deducciones: [] };
+      }
+      const existing = (data?.deducciones || []).find(
+        (d) => d.TIPO === 'VALE' && Number(d.REF_ID) === Number(idVale)
+      );
+      const saldo = Number(vale.SALDO) || Number(vale.saldo) || 0;
+      const sugerido = existing
+        ? Number(existing.MONTO) || 0
+        : Number(vale.CUOTA_SUGERIDA ?? vale.cuota) || 0;
+      const montoDefault = Math.min(sugerido > 0 ? sugerido : saldo, saldo);
+
+      const result = await Swal.fire({
+        ...(typeof CatalogosUI !== 'undefined' ? CatalogosUI.modalBase() : {}),
+        title: `Abono vale #${idVale}`,
+        width: '26rem',
+        html: `
+          <div class="text-start">
+            <p class="small text-muted mb-2">Saldo del vale: <strong>${this.escapeHtml(this.formatMoney(saldo))}</strong></p>
+            <label class="form-label small mb-0" for="nomina-abono-fecha">Fecha</label>
+            <input type="date" id="nomina-abono-fecha" class="form-control form-control-sm mb-2" value="${this.todayIso()}">
+            <label class="form-label small mb-0" for="nomina-abono-monto">Importe a descontar</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">${this.escapeHtml(this.moneyPrefix())}</span>
+              <input type="number" id="nomina-abono-monto" class="form-control text-end" min="0.001" step="0.001" max="${saldo}" value="${montoDefault}">
+            </div>
+            <p class="small text-muted mt-2 mb-0">Se registrará el abono al vale y el cargo en la nómina.</p>
+          </div>`,
+        showCancelButton: true,
+        confirmButtonText:
+          typeof CatalogosUI !== 'undefined' ? CatalogosUI.guardarButtonHtml('Confirmar') : 'Confirmar',
+        cancelButtonText:
+          typeof CatalogosUI !== 'undefined' ? CatalogosUI.cancelButtonHtml('Cancelar') : 'Cancelar',
+        focusConfirm: false,
+        preConfirm: () => {
+          const FECHA = document.getElementById('nomina-abono-fecha')?.value?.trim();
+          const MONTO = Number(document.getElementById('nomina-abono-monto')?.value);
+          if (!FECHA) {
+            Swal.showValidationMessage('Ingrese la fecha');
+            return false;
+          }
+          if (!Number.isFinite(MONTO) || MONTO <= 0) {
+            Swal.showValidationMessage('Ingrese un importe válido');
+            return false;
+          }
+          if (MONTO > saldo + 0.0005) {
+            Swal.showValidationMessage(`No puede superar el saldo (${this.formatMoney(saldo)})`);
+            return false;
+          }
+          return { IDVALE: idVale, FECHA, MONTO };
+        },
+      });
+
+      if (!result.isConfirmed || !result.value) return;
+      try {
+        const resp = await F.fetchJson(this.deduccionesApiUrl(planillaId, detalleId, '/vale-abono'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(result.value),
+        });
+        if (resp.planilla) this._doc = resp.planilla;
+        this.refreshEditorBody();
+        if (typeof refreshParent === 'function') await refreshParent();
+        F.toast('Abono registrado en nómina', 'success');
+      } catch (err) {
+        F.alert('Error', err.message || 'No se pudo registrar el abono', 'error');
+      }
+    },
+
+    async showDeduccionesModal(line) {
+      if (!cfg.layoutInterna) return;
+      const codemp = line?.CODEMPLEADO;
+      const planillaId = this._doc?.header?.ID;
+      const detalleId = line?.ID;
+      if (codemp == null || !planillaId || !detalleId) return;
+      const editable = this.docEditable({ header: this._doc?.header });
+
+      let modalData;
+      try {
+        modalData = await this.fetchDeduccionesData(line);
+      } catch (err) {
+        F.alert('Error', err.message || 'No se pudieron cargar las deducciones', 'error');
+        return;
+      }
+
+      const refreshModal = async () => {
+        modalData = await this.fetchDeduccionesData(line);
+        const htmlContainer = Swal.getHtmlContainer();
+        this.applyDeduccionesModalHtml(htmlContainer, modalData, editable);
+        this.bindDeduccionesModalEvents(htmlContainer, line, editable, refreshModal);
+      };
+
+      await Swal.fire({
+        ...(typeof CatalogosUI !== 'undefined' ? CatalogosUI.modalBase() : {}),
+        title: 'Deducciones de nómina',
+        width: '56rem',
+        html: this.renderDeduccionesModalHtml(modalData, editable),
+        confirmButtonText:
+          typeof CatalogosUI !== 'undefined' ? CatalogosUI.aceptarButtonHtml('Cerrar') : 'Cerrar',
+        showCancelButton: false,
+        didOpen: () => {
+          const htmlContainer = Swal.getHtmlContainer();
+          this.bindDeduccionesModalEvents(htmlContainer, line, editable, refreshModal);
+        },
+      });
     },
 
     async saveLine(detalleId, payload) {
@@ -458,6 +829,12 @@ function createNominaDocView(cfg) {
       this._container.querySelector(`#${id('editor-body')}`)?.addEventListener('click', async (e) => {
         const row = e.target.closest('.nomina-line-row');
         if (!row) return;
+        if (e.target.closest('.nomina-line-deducciones')) {
+          const detalleId = row.dataset.detalleId;
+          const line = (this._doc?.lines || []).find((l) => String(l.ID) === String(detalleId));
+          if (line) await this.showDeduccionesModal(line);
+          return;
+        }
         if (e.target.closest('.nomina-line-print')) {
           const detalleId = row.dataset.detalleId;
           const line = (this._doc?.lines || []).find((l) => String(l.ID) === String(detalleId));

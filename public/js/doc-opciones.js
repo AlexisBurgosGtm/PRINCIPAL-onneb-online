@@ -274,13 +274,17 @@ const DocOpciones = {
   },
 
   /**
-   * Tras finalizar FAC / facturación / DEV / FNC / FNA:
+   * Tras finalizar FAC / facturación / DEV / FNA (no FEL):
    * si IMPRIME TICKET AL GUARDAR VENTA = SI → muestra formato imprimible del sistema.
-   * No consulta MUESTRA FORMATO FEL ONLINE (solo aplica en certificación FEL).
-   * @param {{ alreadyPrintedSistema?: boolean, onImprimir?: () => Promise<void>|void }} opts
+   * Documentos FEL (FEF/FEC/FES/FNC): no aplica; solo «Muestra formato FEL online» al certificar.
+   * @param {{ tipodoc?: string, alreadyPrintedSistema?: boolean, onImprimir?: () => Promise<void>|void }} opts
    */
   async maybeImprimirTicketTrasFinalizar(opts = {}) {
     if (opts.alreadyPrintedSistema) return false;
+    const tipodoc = String(opts.tipodoc || '').trim().toUpperCase();
+    if (tipodoc && (this.esTipoCertificableFel(tipodoc) || tipodoc === 'FES')) {
+      return false;
+    }
     let imprime = false;
     try {
       imprime = await this.fetchImprimeTicketAlGuardarVenta();
