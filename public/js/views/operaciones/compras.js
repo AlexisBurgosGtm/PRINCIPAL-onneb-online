@@ -332,12 +332,21 @@ const ComprasView = {
   },
 
   cargarCostosPendingLines() {
-    return (this._compra?.lines || []).filter((ln) => {
+    const lines = (this._compra?.lines || []).filter((ln) => {
       if (this.lineId(ln) == null) return false;
       if (String(ln.TIPOPROD || '').trim().toUpperCase() === 'S') return false;
       if (String(ln.CODPROD || '').trim().toUpperCase().startsWith('PSE')) return false;
       return true;
     });
+    const byProd = new Map();
+    for (const ln of lines) {
+      const cod = String(ln.CODPROD || '').trim();
+      if (!cod) continue;
+      if (!byProd.has(cod)) {
+        byProd.set(cod, { CODPROD: cod, DESPROD: ln.DESPROD, lineId: this.lineId(ln) });
+      }
+    }
+    return [...byProd.values()];
   },
 
   cargarCostosBtnIdleHtml() {
@@ -596,19 +605,23 @@ const ComprasView = {
     try {
       for (let i = 0; i < pending.length; i += 1) {
         const line = pending[i];
-        const lineId = this.lineId(line);
-        const label = line.DESPROD || line.CODPROD || 'Producto';
+        const codprod = String(line.CODPROD || '').trim();
+        const lineId = line.lineId ?? this.lineId(line);
+        const label = line.DESPROD || codprod || 'Producto';
         this.setCargarCostosStatus(`Actualizando (${i + 1}/${total}): ${label}…`, 'loading');
         try {
+          const body = codprod ? { codprod } : { lineId };
           const res = await F.fetchJson(this.cargarCostosUrl(key), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lineId }),
+            body: JSON.stringify(body),
           });
           okCount += 1;
           const name = res.desprod || res.codprod || label;
+          const promTxt =
+            res.costoPromedio != null ? ` · prom. ${this.formatMoney(res.costoPromedio)}` : '';
           this.setCargarCostosStatus(
-            `(${i + 1}/${total}) ${name} — costo unit. ${this.formatMoney(res.costoUnitario)}`,
+            `(${i + 1}/${total}) ${name} — costo unit. ${this.formatMoney(res.costoUnitario)}${promTxt}`,
             'info'
           );
         } catch (err) {

@@ -36,6 +36,12 @@ const {
   isStatusEditable,
   SQL_STATUS_EDITABLE,
 } = require('../lib/documento-status');
+const {
+  calcularCostoPromedioUnitario,
+  actualizarCostoPromedio,
+  leerExistenciaCostoProducto,
+  totalesCompraProducto,
+} = require('../lib/costo-promedio');
 
 const router = express.Router();
 
@@ -282,6 +288,86 @@ async function assertCompraEditable(transaction, empnit, coddoc, correlativo) {
   }
 }
 
+async function cargarCostosDesdeProducto(pool, empnit, coddoc, correlativo, codprod, desprodHint = '') {
+  const cod = String(codprod || '').trim();
+  if (!cod) {
+    const err = new Error('CODPROD requerido');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (cod.toUpperCase().startsWith('PSE')) {
+    const err = new Error('Producto sin existencia (PSE): no actualiza catálogo');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const compraTotals = await totalesCompraProducto(pool, empnit, coddoc, correlativo, cod);
+  if (compraTotals.totalUnidades <= 0) {
+    const err = new Error('Sin unidades de compra para el producto');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const existencia = await leerExistenciaCostoProducto(pool, empnit, cod);
+  if (!existencia) {
+    const err = new Error(`Producto ${cod} no encontrado`);
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const costoUnitario = roundMoney(compraTotals.totalCosto / compraTotals.totalUnidades);
+  const costoPromedio = calcularCostoPromedioUnitario({
+    costoCompraTotal: compraTotals.totalCosto,
+    unidadesCompra: compraTotals.totalUnidades,
+    costoUnitarioActual: existencia.costoUnitario,
+    saldoExistencia: existencia.saldo,
+  });
+
+  const transaction = new sql.Transaction(pool);
+  await transaction.begin();
+  try {
+    await assertCompraEditable(transaction, empnit, coddoc, correlativo);
+    const prodUpd = await transaction
+      .request()
+      .input('EMPNIT', sql.VarChar, empnit)
+      .input('CODPROD', sql.VarChar, cod)
+      .input('COSTO', sql.Decimal(18, 3), costoUnitario)
+      .query(`
+        UPDATE dbo.PRODUCTOS SET COSTO = @COSTO
+        WHERE EMPNIT = @EMPNIT AND CODPROD = @CODPROD
+      `);
+    if (prodUpd.rowsAffected[0] === 0) {
+      const err = new Error(`Producto ${cod} no encontrado`);
+      err.statusCode = 404;
+      throw err;
+    }
+    const precUpd = await transaction
+      .request()
+      .input('EMPNIT', sql.VarChar, empnit)
+      .input('CODPROD', sql.VarChar, cod)
+      .input('COSTO_UNIT', sql.Decimal(18, 3), costoUnitario)
+      .query(`
+        UPDATE dbo.PRECIOS
+        SET COSTO = ROUND(@COSTO_UNIT * CAST(EQUIVALE AS decimal(18, 3)), 3)
+        WHERE EMPNIT = @EMPNIT AND CODPROD = @CODPROD
+      `);
+    const promedioUpd = await actualizarCostoPromedio(transaction, empnit, cod, costoPromedio);
+    await transaction.commit();
+    return {
+      codprod: cod,
+      desprod: desprodHint,
+      costoUnitario,
+      costoPromedio: promedioUpd.costoPromedio,
+      preciosActualizados: precUpd.rowsAffected[0] ?? 0,
+      costoPromedioPrecios: promedioUpd.preciosActualizados,
+      invsaldoActualizados: promedioUpd.invsaldoActualizados,
+    };
+  } catch (inner) {
+    await transaction.rollback();
+    throw inner;
+  }
+}
+
 async function cargarCostosDesdeLinea(pool, empnit, coddoc, correlativo, lineId) {
   const lineRes = await pool
     .request()
@@ -290,7 +376,7 @@ async function cargarCostosDesdeLinea(pool, empnit, coddoc, correlativo, lineId)
     .input('CORRELATIVO', sql.Decimal(18, 0), correlativo)
     .input('ID', sql.Int, lineId)
     .query(`
-      SELECT Id AS ID, CODPROD, DESPROD, COSTO, EQUIVALE, TIPOPROD
+      SELECT Id AS ID, CODPROD, DESPROD, TIPOPROD
       FROM dbo.DOCPRODUCTOS
       WHERE EMPNIT = @EMPNIT AND CODDOC = @CODDOC AND CORRELATIVO = @CORRELATIVO AND Id = @ID
     `);
@@ -300,59 +386,19 @@ async function cargarCostosDesdeLinea(pool, empnit, coddoc, correlativo, lineId)
     throw err;
   }
   const line = lineRes.recordset[0];
-  if (String(line.CODPROD || '').trim().toUpperCase().startsWith('PSE')) {
-    const err = new Error('Producto sin existencia (PSE): no actualiza catálogo');
+  if (String(line.TIPOPROD || '').trim().toUpperCase() === 'S') {
+    const err = new Error('Producto de servicio: no actualiza catálogo');
     err.statusCode = 400;
     throw err;
   }
-  const equivale = Number(line.EQUIVALE) || 0;
-  if (equivale <= 0) {
-    const err = new Error('Equivalente inválido en la línea');
-    err.statusCode = 400;
-    throw err;
-  }
-  const costoLinea = Number(line.COSTO) || 0;
-  const costoUnitario = roundMoney(costoLinea / equivale);
-
-  const transaction = new sql.Transaction(pool);
-  await transaction.begin();
-  try {
-    await assertCompraEditable(transaction, empnit, coddoc, correlativo);
-    const prodUpd = await transaction
-      .request()
-      .input('EMPNIT', sql.VarChar, empnit)
-      .input('CODPROD', sql.VarChar, line.CODPROD)
-      .input('COSTO', sql.Decimal(18, 3), costoUnitario)
-      .query(`
-        UPDATE dbo.PRODUCTOS SET COSTO = @COSTO
-        WHERE EMPNIT = @EMPNIT AND CODPROD = @CODPROD
-      `);
-    if (prodUpd.rowsAffected[0] === 0) {
-      const err = new Error(`Producto ${line.CODPROD} no encontrado`);
-      err.statusCode = 404;
-      throw err;
-    }
-    const precUpd = await transaction
-      .request()
-      .input('EMPNIT', sql.VarChar, empnit)
-      .input('CODPROD', sql.VarChar, line.CODPROD)
-      .input('COSTO_UNIT', sql.Decimal(18, 3), costoUnitario)
-      .query(`
-        UPDATE dbo.PRECIOS
-        SET COSTO = ROUND(@COSTO_UNIT * CAST(EQUIVALE AS decimal(18, 3)), 3)
-        WHERE EMPNIT = @EMPNIT AND CODPROD = @CODPROD
-      `);
-    await transaction.commit();
-    return {
-      codprod: line.CODPROD,
-      desprod: line.DESPROD,
-      costoUnitario,
-      preciosActualizados: precUpd.rowsAffected[0] ?? 0,
-    };
-  } catch (inner) {
-    await transaction.rollback();
-    throw inner;
-  }
+  return cargarCostosDesdeProducto(
+    pool,
+    empnit,
+    coddoc,
+    correlativo,
+    line.CODPROD,
+    line.DESPROD,
+  );
 }
 
 async function loadCompra(pool, empnit, coddoc, correlativo) {
@@ -1148,12 +1194,19 @@ router.post('/compras/:coddoc/:correlativo/cargar-costos', async (req, res) => {
   if (!empnit) return;
   const coddoc = String(req.params.coddoc || '').trim();
   const correlativo = parseCorrelativo(req.params.correlativo);
+  const codprod = String(req.body?.codprod ?? req.body?.CODPROD ?? '').trim();
   const lineId = parseInt(req.body?.lineId ?? req.body?.line_id, 10);
   if (!coddoc || correlativo === null) return res.status(400).json({ error: 'Documento inválido' });
-  if (Number.isNaN(lineId)) return res.status(400).json({ error: 'lineId requerido' });
   try {
     const pool = await req.app.locals.getDbPool();
-    const result = await cargarCostosDesdeLinea(pool, empnit, coddoc, correlativo, lineId);
+    let result;
+    if (codprod) {
+      result = await cargarCostosDesdeProducto(pool, empnit, coddoc, correlativo, codprod);
+    } else if (!Number.isNaN(lineId)) {
+      result = await cargarCostosDesdeLinea(pool, empnit, coddoc, correlativo, lineId);
+    } else {
+      return res.status(400).json({ error: 'codprod o lineId requerido' });
+    }
     res.json({ ok: true, ...result });
   } catch (err) {
     if (err.statusCode) {

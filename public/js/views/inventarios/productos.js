@@ -34,6 +34,7 @@ const ProductosView = {
     { key: 'DESPROD', label: 'Descripción', cellClass: 'productos-col-desc' },
     { key: 'DESPROD2', label: 'Descripción 2', cellClass: 'productos-col-desc', desprod2Only: true },
     { key: 'DESMARCA', label: 'Marca' },
+    { key: 'COSTO_PROMEDIO', label: 'Costo prom.', type: 'money' },
     { key: 'COSTO', label: 'Costo', type: 'money' },
     { key: 'HABILITADO', label: 'Habilitado', toggle: true },
   ],

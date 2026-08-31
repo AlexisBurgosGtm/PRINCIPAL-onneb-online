@@ -64,6 +64,7 @@ const LIST_SELECT = `
   pr.CODMEDIDA,
   pr.EQUIVALE,
   pr.COSTO,
+  pr.COSTO_PROMEDIO,
   pr.PRECIO,
   pr.MAYOREOC,
   pr.MAYOREOB,
@@ -131,7 +132,7 @@ router.get('/', async (req, res) => {
       `)
     ).recordset.map((row) => {
       if (includeCosto) return row;
-      const { COSTO, ...rest } = row;
+      const { COSTO, COSTO_PROMEDIO, ...rest } = row;
       return rest;
     });
 
@@ -182,6 +183,7 @@ router.get('/export', async (req, res) => {
       { header: 'EQUIVALE', key: 'EQUIVALE', width: 12 },
     ];
     if (includeCosto) {
+      columns.push({ header: 'COSTO_PROMEDIO', key: 'COSTO_PROMEDIO', width: 14 });
       columns.push({ header: 'COSTO', key: 'COSTO', width: 14 });
     }
     columns.push(
@@ -208,12 +210,15 @@ router.get('/export', async (req, res) => {
         MAYOREOA: Number(row.MAYOREOA) || 0,
         EXISTENCIA: Number(row.EXISTENCIA) || 0,
       };
-      if (includeCosto) out.COSTO = Number(row.COSTO) || 0;
+      if (includeCosto) {
+        out.COSTO_PROMEDIO = Number(row.COSTO_PROMEDIO) || 0;
+        out.COSTO = Number(row.COSTO) || 0;
+      }
       sheet.addRow(out);
     }
 
     const moneyCols = includeCosto
-      ? ['EQUIVALE', 'COSTO', 'PRECIO', 'MAYOREOC', 'MAYOREOB', 'MAYOREOA', 'EXISTENCIA']
+      ? ['EQUIVALE', 'COSTO_PROMEDIO', 'COSTO', 'PRECIO', 'MAYOREOC', 'MAYOREOB', 'MAYOREOA', 'EXISTENCIA']
       : ['EQUIVALE', 'PRECIO', 'MAYOREOC', 'MAYOREOB', 'MAYOREOA', 'EXISTENCIA'];
     for (const col of moneyCols) {
       sheet.getColumn(col).numFmt = '#,##0.00';

@@ -69,9 +69,10 @@ function totalsFromRows(rows) {
     (acc, row) => {
       acc.SALDO += Number(row.SALDO) || 0;
       acc.TOTALCOSTO += Number(row.TOTALCOSTO) || 0;
+      acc.TOTALCOSTO_PROMEDIO += Number(row.TOTALCOSTO_PROMEDIO) || 0;
       return acc;
     },
-    { SALDO: 0, TOTALCOSTO: 0 },
+    { SALDO: 0, TOTALCOSTO: 0, TOTALCOSTO_PROMEDIO: 0 },
   );
 }
 
@@ -95,8 +96,10 @@ const LIST_SELECT_INVSALDO = `
   m.DESMARCA,
   p.TIPOPROD,
   p.COSTO,
+  p.COSTO_PROMEDIO,
   p.HABILITADO,
-  CAST(ISNULL(p.COSTO, 0) * ISNULL(i.SALDO, 0) AS DECIMAL(18, 4)) AS TOTALCOSTO
+  CAST(ISNULL(p.COSTO, 0) * ISNULL(i.SALDO, 0) AS DECIMAL(18, 4)) AS TOTALCOSTO,
+  CAST(ISNULL(p.COSTO_PROMEDIO, 0) * ISNULL(i.SALDO, 0) AS DECIMAL(18, 4)) AS TOTALCOSTO_PROMEDIO
 `;
 
 const LIST_FROM_PREVIEW = `
@@ -123,8 +126,10 @@ const LIST_SELECT_PRODUCT = `
   m.DESMARCA,
   p.TIPOPROD,
   p.COSTO,
+  p.COSTO_PROMEDIO,
   p.HABILITADO,
-  CAST(ISNULL(p.COSTO, 0) * ISNULL(inv.SALDO, 0) AS DECIMAL(18, 4)) AS TOTALCOSTO
+  CAST(ISNULL(p.COSTO, 0) * ISNULL(inv.SALDO, 0) AS DECIMAL(18, 4)) AS TOTALCOSTO,
+  CAST(ISNULL(p.COSTO_PROMEDIO, 0) * ISNULL(inv.SALDO, 0) AS DECIMAL(18, 4)) AS TOTALCOSTO_PROMEDIO
 `;
 
 const LIST_FROM_PRODUCT = `
@@ -159,7 +164,8 @@ function getListSqlParts(q, codmarca, habilitado) {
       orderBy: 'p.CODPROD',
       totalsSelect: `
         SUM(ISNULL(inv.SALDO, 0)) AS SUM_SALDO,
-        SUM(CAST(ISNULL(p.COSTO, 0) * ISNULL(inv.SALDO, 0) AS DECIMAL(18, 4))) AS SUM_TOTALCOSTO
+        SUM(CAST(ISNULL(p.COSTO, 0) * ISNULL(inv.SALDO, 0) AS DECIMAL(18, 4))) AS SUM_TOTALCOSTO,
+        SUM(CAST(ISNULL(p.COSTO_PROMEDIO, 0) * ISNULL(inv.SALDO, 0) AS DECIMAL(18, 4))) AS SUM_TOTALCOSTO_PROMEDIO
       `,
     };
   }
@@ -170,7 +176,8 @@ function getListSqlParts(q, codmarca, habilitado) {
     orderBy: 'i.CODPROD',
     totalsSelect: `
       SUM(ISNULL(i.SALDO, 0)) AS SUM_SALDO,
-      SUM(CAST(ISNULL(p.COSTO, 0) * ISNULL(i.SALDO, 0) AS DECIMAL(18, 4))) AS SUM_TOTALCOSTO
+      SUM(CAST(ISNULL(p.COSTO, 0) * ISNULL(i.SALDO, 0) AS DECIMAL(18, 4))) AS SUM_TOTALCOSTO,
+      SUM(CAST(ISNULL(p.COSTO_PROMEDIO, 0) * ISNULL(i.SALDO, 0) AS DECIMAL(18, 4))) AS SUM_TOTALCOSTO_PROMEDIO
     `,
   };
 }
@@ -220,7 +227,7 @@ router.get('/saldo', async (req, res) => {
       total = rows.length;
     }
 
-    let totals = { SALDO: 0, TOTALCOSTO: 0 };
+    let totals = { SALDO: 0, TOTALCOSTO: 0, TOTALCOSTO_PROMEDIO: 0 };
     if (skipExactMeta) {
       totals = totalsFromRows(rows);
     } else {
@@ -236,6 +243,7 @@ router.get('/saldo', async (req, res) => {
       totals = {
         SALDO: totalsRow.SUM_SALDO ?? 0,
         TOTALCOSTO: totalsRow.SUM_TOTALCOSTO ?? 0,
+        TOTALCOSTO_PROMEDIO: totalsRow.SUM_TOTALCOSTO_PROMEDIO ?? 0,
       };
     }
 
@@ -302,8 +310,10 @@ router.get('/saldo/export', async (req, res) => {
       { header: 'Tipo', key: 'TIPOPROD', width: 10 },
       { header: 'Saldo', key: 'SALDO', width: 12 },
       { header: 'Existencia', key: 'EXISTENCIA', width: 12 },
+      { header: 'Costo prom.', key: 'COSTO_PROMEDIO', width: 12 },
       { header: 'Costo', key: 'COSTO', width: 12 },
       { header: 'Total costo', key: 'TOTALCOSTO', width: 14 },
+      { header: 'Total costo prom.', key: 'TOTALCOSTO_PROMEDIO', width: 16 },
       { header: 'Habilitado', key: 'HABILITADO', width: 12 },
     ];
     sheet.getRow(1).font = { bold: true };
@@ -320,8 +330,10 @@ router.get('/saldo/export', async (req, res) => {
         TIPOPROD: 'Totales',
         SALDO: totalsRow.SUM_SALDO ?? 0,
         EXISTENCIA: '',
+        COSTO_PROMEDIO: '',
         COSTO: '',
         TOTALCOSTO: totalsRow.SUM_TOTALCOSTO ?? 0,
+        TOTALCOSTO_PROMEDIO: totalsRow.SUM_TOTALCOSTO_PROMEDIO ?? 0,
         HABILITADO: '',
       });
       totalRow.font = { bold: true };
@@ -409,6 +421,7 @@ router.get('/retroactivo/export', async (req, res) => {
       { header: 'Tipo', key: 'TIPOPROD', width: 10 },
       { header: 'Saldo', key: 'SALDO', width: 12 },
       { header: 'Existencia', key: 'EXISTENCIA', width: 12 },
+      { header: 'Costo prom.', key: 'COSTO_PROMEDIO', width: 12 },
       { header: 'Costo', key: 'COSTO', width: 12 },
       { header: 'Total costo', key: 'TOTALCOSTO', width: 14 },
       { header: 'Habilitado', key: 'HABILITADO', width: 12 },
@@ -745,6 +758,7 @@ router.get('/relleno/export', async (req, res) => {
       { header: 'Tipo', key: 'TIPOPROD', width: 10 },
       { header: 'Saldo', key: 'SALDO', width: 12 },
       { header: 'Existencia', key: 'EXISTENCIA', width: 12 },
+      { header: 'Costo prom.', key: 'COSTO_PROMEDIO', width: 12 },
       { header: 'Costo', key: 'COSTO', width: 12 },
       { header: 'Total costo', key: 'TOTALCOSTO', width: 14 },
       { header: 'Mínimo', key: 'INVMINIMO', width: 12 },

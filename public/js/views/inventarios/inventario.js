@@ -10,7 +10,7 @@ const InventarioView = {
   _filterMarca: '',
   _filterHabilitado: '',
   _marcas: [],
-  _totals: { SALDO: 0, TOTALCOSTO: 0 },
+  _totals: { SALDO: 0, TOTALCOSTO: 0, TOTALCOSTO_PROMEDIO: 0 },
   _loading: false,
   _exporting: false,
   _printing: false,
@@ -22,8 +22,10 @@ const InventarioView = {
     { key: 'TIPOPROD', label: 'Tipo' },
     { key: 'SALDO', label: 'Saldo', type: 'qty' },
     { key: 'EXISTENCIA', label: 'Existencia', type: 'qty' },
+    { key: 'COSTO_PROMEDIO', label: 'Costo prom.', type: 'money', ventasHidden: true },
     { key: 'COSTO', label: 'Costo', type: 'money', ventasHidden: true },
     { key: 'TOTALCOSTO', label: 'Total costo', type: 'money', ventasHidden: true },
+    { key: 'TOTALCOSTO_PROMEDIO', label: 'Total costo prom.', type: 'money', ventasHidden: true },
     { key: 'HABILITADO', label: 'Habilitado' },
   ],
 
@@ -123,6 +125,9 @@ const InventarioView = {
       .map((c) => {
         if (c.key === 'TOTALCOSTO') {
           return `<td class="text-end inventario-money">${this.escapeHtml(this.formatMoney(this._totals.TOTALCOSTO))}</td>`;
+        }
+        if (c.key === 'TOTALCOSTO_PROMEDIO') {
+          return `<td class="text-end inventario-money">${this.escapeHtml(this.formatMoney(this._totals.TOTALCOSTO_PROMEDIO))}</td>`;
         }
         return '<td></td>';
       })
@@ -322,7 +327,7 @@ const InventarioView = {
     this._rows = data.rows || [];
     this._totalCount = data.total ?? this._rows.length;
     this._listTruncated = Boolean(data.truncated);
-    this._totals = data.totals || { SALDO: 0, TOTALCOSTO: 0 };
+    this._totals = data.totals || { SALDO: 0, TOTALCOSTO: 0, TOTALCOSTO_PROMEDIO: 0 };
     return data;
   },
 
@@ -510,6 +515,9 @@ const InventarioView = {
         if (c.key === 'TOTALCOSTO') {
           return `<td class="text-end"><strong>${PrintReport.escapeHtml(this.formatMoney(totals.TOTALCOSTO))}</strong></td>`;
         }
+        if (c.key === 'TOTALCOSTO_PROMEDIO') {
+          return `<td class="text-end"><strong>${PrintReport.escapeHtml(this.formatMoney(totals.TOTALCOSTO_PROMEDIO))}</strong></td>`;
+        }
         return '<td></td>';
       })
       .join('');
@@ -557,7 +565,7 @@ const InventarioView = {
     try {
       const data = await F.fetchJson(this.printFetchUrl(), { cache: 'no-store' });
       const rows = data.rows || [];
-      const totals = data.totals || { SALDO: 0, TOTALCOSTO: 0 };
+      const totals = data.totals || { SALDO: 0, TOTALCOSTO: 0, TOTALCOSTO_PROMEDIO: 0 };
       await PrintReport.openAndPrint(
         () => this.buildPrintHtml(rows, totals, Boolean(data.truncated))
       );
@@ -583,7 +591,7 @@ const InventarioView = {
       this.updateTableView();
     } catch (err) {
       this._rows = [];
-      this._totals = { SALDO: 0, TOTALCOSTO: 0 };
+      this._totals = { SALDO: 0, TOTALCOSTO: 0, TOTALCOSTO_PROMEDIO: 0 };
       if (tbody) {
         tbody.innerHTML = `<tr><td colspan="${this.tableColumns.length}" class="text-center text-danger py-4">${this.escapeHtml(err.message)}</td></tr>`;
       }

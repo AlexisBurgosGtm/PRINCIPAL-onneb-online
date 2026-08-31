@@ -45,7 +45,7 @@ const ListaPreciosView = {
   },
 
   colCount() {
-    return this.showCosto() ? 12 : 11;
+    return this.showCosto() ? 13 : 11;
   },
 
   apiUrl(path = '', params = {}) {
@@ -136,7 +136,8 @@ const ListaPreciosView = {
     return this._rows
       .map((row) => {
         const costoCell = showCosto
-          ? `<td class="text-end text-nowrap">${this.escapeHtml(this.formatMoney(row.COSTO))}</td>`
+          ? `<td class="text-end text-nowrap">${this.escapeHtml(this.formatMoney(row.COSTO_PROMEDIO))}</td>
+          <td class="text-end text-nowrap">${this.escapeHtml(this.formatMoney(row.COSTO))}</td>`
           : '';
         return `
       <tr>
@@ -162,7 +163,7 @@ const ListaPreciosView = {
     if (!wrap) return;
     const showCosto = this.showCosto();
     const costoHeader = showCosto
-      ? '<th scope="col" class="text-end">COSTO</th>'
+      ? '<th scope="col" class="text-end">COSTO_PROM.</th><th scope="col" class="text-end">COSTO</th>'
       : '';
     wrap.innerHTML = `
       <div class="w-100">
